@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
     View,
     Text,
@@ -8,12 +8,11 @@ import {
     ScrollView,
     TouchableOpacity,
     ActivityIndicator,
-    FlatList,
     Dimensions
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import { LineChart } from 'react-native-chart-kit';
-import { FontAwesome5, MaterialIcons, MaterialCommunityIcons, Ionicons } from '@expo/vector-icons';
+import { FontAwesome5, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue } from 'firebase/database';
 
@@ -83,8 +82,12 @@ const HomeScreen = () => {
 
     const [data, setData] = useState<DashboardData | null>(null);
     const [loading, setLoading] = useState(true);
-    const [timePeriod, setTimePeriod] = useState('7days');
+    const [dropdownOpen, setDropdownOpen] = useState(false);
+    const [selectedPeriod, setSelectedPeriod] = useState('7days');
     const [activeTab, setActiveTab] = useState('Stats');
+    const scrollViewRef = useRef<ScrollView>(null);
+    const dropdownRef = useRef<View>(null);
+    const [contentOffsets, setContentOffsets] = useState<{ [key: string]: number }>({});
 
     useEffect(() => {
         const dbRef = ref(database, '/devices/kibbler_001');
@@ -102,10 +105,28 @@ const HomeScreen = () => {
         });
 
         return () => unsubscribe();
-    }, []);
+    }, [selectedPeriod]);
+
+    const handleTabPress = (tabName: string) => {
+        setActiveTab(tabName);
+
+        if (contentOffsets[tabName] !== undefined) {
+            scrollViewRef.current?.scrollTo({
+                y: contentOffsets[tabName],
+                animated: true
+            });
+        }
+    };
+
+    const handleLayout = (tabName: string) => (event: any) => {
+        const { y } = event.nativeEvent.layout;
+        setContentOffsets(prev => ({
+            ...prev,
+            [tabName]: y - 100
+        }));
+    };
 
     const processDeviceData = (firebaseData: any): DashboardData => {
-        // Process device status
         const deviceStatus = firebaseData.device_status || {
             status: 'offline',
             last_seen: new Date().toISOString(),
@@ -118,8 +139,7 @@ const HomeScreen = () => {
             feeding_interval_hours: 2
         };
 
-        // Process feeding history to find latest feeding
-        let latestFeedingTime = null;
+        let latestFeedingTime: string | null = null;
         if (firebaseData.feeding_history) {
             const feedingHistory = firebaseData.feeding_history;
             let latestTimestamp = 0;
@@ -127,12 +147,14 @@ const HomeScreen = () => {
             Object.entries(feedingHistory).forEach(([key, feeding]: [string, any]) => {
                 try {
                     let currentTime = 0;
-                    let currentFormatted = null;
+                    let currentFormatted: string | null = null;
 
                     if (feeding.timestamp) {
                         const dateTime = new Date(feeding.timestamp);
-                        currentTime = dateTime.getTime();
-                        currentFormatted = formatTimeForDisplay(feeding.timestamp);
+                        if (!isNaN(dateTime.getTime())) {
+                            currentTime = dateTime.getTime();
+                            currentFormatted = formatTimeForDisplay(feeding.timestamp);
+                        }
                     }
 
                     if (currentTime === 0) {
@@ -153,14 +175,12 @@ const HomeScreen = () => {
             });
         }
 
-        // Process last empty time
         let lastEmptyTime = 'Never';
         let timeSinceReset = 'N/A';
         if (firebaseData.last_empty_time) {
             const emptyTime = firebaseData.last_empty_time;
 
             if (typeof emptyTime === 'number') {
-                // Milliseconds since boot
                 const seconds = Math.floor(emptyTime / 1000);
                 const hours = Math.floor(seconds / 3600);
                 const minutes = Math.floor((seconds % 3600) / 60);
@@ -176,34 +196,36 @@ const HomeScreen = () => {
                 }
             } else if (typeof emptyTime === 'string') {
                 const timestamp = new Date(emptyTime).getTime();
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
+                if (!isNaN(timestamp)) {
+                    const today = new Date();
+                    today.setHours(0, 0, 0, 0);
 
-                if (timestamp >= today.getTime() && timestamp < today.getTime() + 86400000) {
-                    lastEmptyTime = 'Today, ' + new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    if (timestamp >= today.getTime() && timestamp < today.getTime() + 86400000) {
+                        lastEmptyTime = 'Today, ' + new Date(timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+                    } else {
+                        lastEmptyTime = new Date(timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    }
+
+                    const timeSince = Date.now() - timestamp;
+                    const timeSinceHours = Math.floor(timeSince / 3600000);
+                    const timeSinceMinutes = Math.floor((timeSince % 3600000) / 60000);
+                    timeSinceReset = `${timeSinceHours} hours ${timeSinceMinutes} mins`;
                 } else {
-                    lastEmptyTime = new Date(timestamp).toLocaleDateString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+                    lastEmptyTime = 'Invalid empty time';
                 }
-
-                const timeSince = Date.now() - timestamp;
-                const timeSinceHours = Math.floor(timeSince / 3600000);
-                const timeSinceMinutes = Math.floor((timeSince % 3600000) / 60000);
-                timeSinceReset = `${timeSinceHours} hours ${timeSinceMinutes} mins`;
             }
         }
 
-        // Process stats
         const stats = {
             today_dispense_count: firebaseData.stats?.today_dispense_count || 0,
             week_dispense_count: getCurrentWeekDispenses(firebaseData),
             today_unique_pets: firebaseData.stats?.today_unique_pets || 0,
             total_unique_uids: firebaseData.stats?.total_unique_uids || 0,
             last_reset_date: firebaseData.stats?.last_reset_date || new Date().toISOString().split('T')[0],
-            last_fed_time: latestFeedingTime || (firebaseData.stats?.last_fed_time || new Date(Date.now() - 86400000).toISOString()),
+            last_fed_time: latestFeedingTime || (firebaseData.stats?.last_fed_time && !isNaN(new Date(firebaseData.stats.last_fed_time).getTime()) ? firebaseData.stats.last_fed_time : new Date().toISOString()),
             last_fed_pet: firebaseData.stats?.last_fed_pet || 'None'
         };
 
-        // Process recent activities
         const petNameMap: Record<string, string> = {};
         if (firebaseData.feeding_history) {
             Object.values(firebaseData.feeding_history).forEach((feeding: any) => {
@@ -236,32 +258,77 @@ const HomeScreen = () => {
             });
         }
 
-        // Sort activities by timestamp (newest first)
         activities.sort((a, b) => new Date(b.raw_timestamp).getTime() - new Date(a.raw_timestamp).getTime());
 
-        // Process weekly chart data
-        const weeklyChart = [0, 0, 0, 0, 0, 0, 0];
-        const chartLabels = ['', '', '', '', '', '', ''];
+        let weeklyChart = [0, 0, 0, 0, 0, 0, 0];
+        let chartLabels = ['', '', '', '', '', '', ''];
 
         if (firebaseData.history?.daily) {
             const dailyData = firebaseData.history.daily;
 
-            for (let i = 6; i >= 0; i--) {
-                const date = new Date();
-                date.setDate(date.getDate() - i);
-                const dateString = date.toISOString().split('T')[0];
-                chartLabels[6 - i] = formatChartLabel(date);
+            if (selectedPeriod === '7days') {
+                for (let i = 6; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    const dateString = date.toISOString().split('T')[0];
+                    chartLabels[6 - i] = formatChartLabel(date);
 
-                if (dailyData[dateString]) {
-                    weeklyChart[6 - i] = dailyData[dateString].dispense_count ||
-                        (dailyData[dateString].feedings ? Object.keys(dailyData[dateString].feedings).length : 0);
+                    if (dailyData[dateString]) {
+                        weeklyChart[6 - i] = dailyData[dateString].dispense_count ||
+                            (dailyData[dateString].feedings ? Object.keys(dailyData[dateString].feedings).length : 0);
+                    }
+                }
+            } else if (selectedPeriod === '4weeks') {
+                weeklyChart = [0, 0, 0, 0];
+                chartLabels = ['', '', '', ''];
+                for (let i = 3; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i * 7);
+                    const dateString = date.toISOString().split('T')[0];
+                    chartLabels[3 - i] = formatChartLabel(date);
+
+                    if (dailyData[dateString]) {
+                        weeklyChart[3 - i] = dailyData[dateString].dispense_count ||
+                            (dailyData[dateString].feedings ? Object.keys(dailyData[dateString].feedings).length : 0);
+                    }
+                }
+            } else if (selectedPeriod === '6months') {
+                weeklyChart = [0, 0, 0, 0, 0, 0];
+                chartLabels = ['', '', '', '', '', ''];
+                for (let i = 5; i >= 0; i--) {
+                    const date = new Date();
+                    date.setMonth(date.getMonth() - i);
+                    const monthString = date.toISOString().slice(0, 7);
+                    chartLabels[5 - i] = formatChartLabel(date);
+
+                    let monthTotal = 0;
+                    Object.entries(dailyData).forEach(([dateKey, dayData]: [string, any]) => {
+                        if (dateKey.startsWith(monthString)) {
+                            monthTotal += dayData.dispense_count || (dayData.feedings ? Object.keys(dayData.feedings).length : 0);
+                        }
+                    });
+                    weeklyChart[5 - i] = monthTotal;
                 }
             }
         } else {
-            for (let i = 6; i >= 0; i--) {
-                const date = new Date();
-                date.setDate(date.getDate() - i);
-                chartLabels[6 - i] = formatChartLabel(date);
+            if (selectedPeriod === '7days') {
+                for (let i = 6; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i);
+                    chartLabels[6 - i] = formatChartLabel(date);
+                }
+            } else if (selectedPeriod === '4weeks') {
+                for (let i = 3; i >= 0; i--) {
+                    const date = new Date();
+                    date.setDate(date.getDate() - i * 7);
+                    chartLabels[3 - i] = formatChartLabel(date);
+                }
+            } else if (selectedPeriod === '6months') {
+                for (let i = 5; i >= 0; i--) {
+                    const date = new Date();
+                    date.setMonth(date.getMonth() - i);
+                    chartLabels[5 - i] = formatChartLabel(date);
+                }
             }
         }
 
@@ -308,11 +375,60 @@ const HomeScreen = () => {
         return total;
     };
 
-    const formatTimeForDisplay = (timestamp: string): string => {
-        if (!timestamp) return 'Never';
+    const formatTimeForDisplay = (timestamp: string | number | undefined | null): string => {
+        console.log('formatTimeForDisplay input:', timestamp);
 
-        const date = new Date(timestamp);
-        if (isNaN(date.getTime())) return 'Invalid date';
+        if (!timestamp) {
+            console.warn('Timestamp is null or undefined, returning Never');
+            return 'Never';
+        }
+
+        let date: Date;
+        try {
+            if (typeof timestamp === 'number') {
+                date = new Date(timestamp < 10000000000 ? timestamp * 1000 : timestamp);
+            } else if (typeof timestamp === 'string') {
+                date = new Date(timestamp);
+                if (isNaN(date.getTime())) {
+                    const match = timestamp.match(/^(\w{3})\s(\d{1,2}),\s(\d{1,2}):(\d{2})\s(AM|PM)$/i);
+                    if (match) {
+                        const [, monthStr, day, hours, minutes, period] = match;
+                        const monthNames: { [key: string]: number } = {
+                            jan: 0, feb: 1, mar: 2, apr: 3, may: 4, jun: 5,
+                            jul: 6, aug: 7, sep: 8, oct: 9, nov: 10, dec: 11
+                        };
+                        const monthKey = monthStr.toLowerCase();
+                        const month = monthNames[monthKey];
+                        if (month === undefined) {
+                            console.error('Invalid month in timestamp:', timestamp);
+                            return 'Invalid date';
+                        }
+                        const year = new Date().getFullYear();
+                        let hourNum = parseInt(hours, 10);
+                        if (period.toUpperCase() === 'PM' && hourNum !== 12) {
+                            hourNum += 12;
+                        } else if (period.toUpperCase() === 'AM' && hourNum === 12) {
+                            hourNum = 0;
+                        }
+                        date = new Date(year, month, parseInt(day, 10), hourNum, parseInt(minutes, 10));
+                    } else {
+                        console.error('Invalid date format:', timestamp);
+                        return 'Invalid date';
+                    }
+                }
+            } else {
+                console.error('Unsupported timestamp type:', typeof timestamp);
+                return 'Invalid date';
+            }
+
+            if (isNaN(date.getTime())) {
+                console.error('Invalid date parsed from timestamp:', timestamp);
+                return 'Invalid date';
+            }
+        } catch (e) {
+            console.error('Error parsing timestamp:', timestamp, e);
+            return 'Invalid date';
+        }
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -431,9 +547,16 @@ const HomeScreen = () => {
             <View style={styles.panel}>
                 <View style={styles.panelHeader}>
                     <Text style={styles.panelTitle}>Device Status</Text>
-                    <View style={[styles.statusBadge, data.device_status.status === 'online' ? styles.connected : styles.disconnected]}>
-                        <View style={styles.statusDot} />
-                        <Text style={styles.statusText}>{data.device_status.status.charAt(0).toUpperCase() + data.device_status.status.slice(1)}</Text>
+                    <View style={[styles.statusBadge, data?.device_status.status === 'online' ? styles.connected : styles.disconnected]}>
+                        <View style={[
+                            styles.statusDot,
+                            data?.device_status.status === 'online' ? styles.connectedDot : styles.disconnectedDot
+                        ]} />
+                        <Text style={styles.statusText}>
+                            {data?.device_status.status
+                                ? data.device_status.status.charAt(0).toUpperCase() + data.device_status.status.slice(1)
+                                : 'Unknown'}
+                        </Text>
                     </View>
                 </View>
 
@@ -463,7 +586,7 @@ const HomeScreen = () => {
                             <FontAwesome5 name="wifi" size={16} color="#fff" />
                         </View>
                         <View style={styles.metricInfo}>
-                            <Text style={styles.metricLabel}>WiFi Signal</Text>
+                            <Text style={styles.metricLabel}>WiFi WiFi Signal</Text>
                             <Text style={styles.metricValue}>
                                 {formatWifiSignal(data.device_status.wifi_signal)}
                             </Text>
@@ -512,17 +635,59 @@ const HomeScreen = () => {
     const renderFeedingTrend = () => {
         if (!data) return null;
 
+        const timePeriods = [
+            { label: 'Last 7 Days', value: '7days' },
+            { label: 'Last 4 Weeks', value: '4weeks' },
+            { label: 'Last 6 Months', value: '6months' }
+        ];
+
+        const handlePeriodChange = (period: string) => {
+            setSelectedPeriod(period);
+            setDropdownOpen(false);
+            console.log('Selected period:', period);
+        };
+
         return (
             <View style={styles.panel}>
                 <View style={styles.panelHeader}>
                     <Text style={styles.panelTitle}>
-                        <FontAwesome5 name="chart-column" size={16} color="#fff" /> Feeding Trend
+                        <FontAwesome5 name="chart-bar" size={16} color="#fff" /> Feeding Trend
                     </Text>
-                    <View style={styles.customDropdown}>
-                        <View style={styles.dropdownSelected}>
-                            <Text>Last 7 Days</Text>
-                            <FontAwesome5 name="caret-down" size={14} color="#fff" />
-                        </View>
+                    <View style={styles.dropdownContainer} ref={dropdownRef}>
+                        <TouchableOpacity
+                            style={styles.dropdownButton}
+                            onPress={() => {
+                                console.log('Dropdown button pressed');
+                                setDropdownOpen(!dropdownOpen);
+                            }}
+                            activeOpacity={0.7}
+                        >
+                            <Text style={styles.dropdownButtonText}>
+                                {timePeriods.find(p => p.value === selectedPeriod)?.label || 'Select Period'}
+                            </Text>
+                            <FontAwesome5
+                                name={dropdownOpen ? "caret-up" : "caret-down"}
+                                size={14}
+                                color="#fff"
+                            />
+                        </TouchableOpacity>
+
+                        {dropdownOpen && (
+                            <View style={styles.dropdownMenu}>
+                                {timePeriods.map((period) => (
+                                    <TouchableOpacity
+                                        key={period.value}
+                                        style={styles.dropdownMenuItem}
+                                        onPress={() => handlePeriodChange(period.value)}
+                                        activeOpacity={0.7}
+                                    >
+                                        <Text style={styles.dropdownMenuItemText}>
+                                            {period.label}
+                                        </Text>
+                                    </TouchableOpacity>
+                                ))}
+                            </View>
+                        )}
                     </View>
                 </View>
 
@@ -537,25 +702,25 @@ const HomeScreen = () => {
                         width={Dimensions.get('window').width - 60}
                         height={220}
                         chartConfig={{
-                            backgroundColor: '#121212',
-                            backgroundGradientFrom: '#121212',
-                            backgroundGradientTo: '#121212',
+                            backgroundGradientFromOpacity: 0,
+                            backgroundGradientToOpacity: 0,
                             decimalPlaces: 0,
-                            color: (opacity = 1) => `rgba(221, 44, 0, ${opacity})`,
-                            labelColor: (opacity = 1) => `rgba(232, 232, 232, ${opacity})`,
+                            color: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
+                            labelColor: (opacity = 1) => `rgba(255, 255, 255, ${opacity})`,
                             style: {
-                                borderRadius: 16
+                                borderRadius: 16,
                             },
                             propsForDots: {
                                 r: "6",
                                 strokeWidth: "2",
-                                stroke: "#dd2c00"
+                                stroke: "#ffffff"
                             }
                         }}
                         bezier
                         style={{
                             marginVertical: 8,
-                            borderRadius: 16
+                            borderRadius: 16,
+                            zIndex: 0,
                         }}
                     />
                 </View>
@@ -584,14 +749,14 @@ const HomeScreen = () => {
             <View style={styles.panel}>
                 <View style={styles.panelHeader}>
                     <Text style={styles.panelTitle}>
-                        <FontAwesome5 name="clock-rotate-left" size={16} color="#fff" /> Freshness Monitoring
+                        <FontAwesome5 name="leaf" size={16} color="#fff" /> Freshness Monitoring
                     </Text>
                 </View>
 
                 <View style={styles.controlMetrics}>
                     <View style={styles.controlMetric}>
                         <View style={styles.controlIcon}>
-                            <FontAwesome5 name="clock-rotate-left" size={16} color="#fff" />
+                            <FontAwesome5 name="clock" size={16} color="#fff" />
                         </View>
                         <View style={styles.controlInfo}>
                             <Text style={styles.controlLabel}>Last Tray Reset</Text>
@@ -636,27 +801,27 @@ const HomeScreen = () => {
                     </Text>
                 </View>
 
-                <FlatList
-                    data={data.recent_activities}
-                    renderItem={({ item }) => (
-                        <View style={styles.activityItem}>
+                <ScrollView
+                    style={styles.scrollableActivities}
+                    nestedScrollEnabled={true}
+                >
+                    {data.recent_activities.map((item, index) => (
+                        <View key={index} style={styles.activityItem}>
                             <View style={[styles.activityIcon, item.type === 'feeding' ? styles.feedingIcon : styles.resetIcon]}>
                                 <FontAwesome5 name={item.type === 'feeding' ? "paw" : "clock-rotate-left"} size={16} color="#fff" />
                             </View>
                             <View style={styles.activityContent}>
                                 <Text style={styles.activityMessage}>
                                     {item.uid && (
-                                        <Text style={styles.petNameBadge}>{item.pet_name} </Text>
+                                        <Text> </Text>
                                     )}
                                     {item.message}
                                 </Text>
                                 <Text style={styles.activityTime}>{item.time}</Text>
                             </View>
                         </View>
-                    )}
-                    keyExtractor={(item, index) => index.toString()}
-                    style={styles.scrollableActivities}
-                />
+                    ))}
+                </ScrollView>
             </View>
         );
     };
@@ -670,97 +835,146 @@ const HomeScreen = () => {
     }
 
     return (
-        <ScrollView style={styles.container}>
+        <View style={styles.container}>
             <ImageBackground
                 source={require('../../assets/BG.png')}
-                style={styles.header}
+                style={styles.background}
                 resizeMode="cover"
             >
-                <StatusBar barStyle="light-content" backgroundColor="transparent" />
-                <View style={styles.headerContent}>
-                    <View style={styles.logoSection}>
-                        {/* 
-                        <TouchableOpacity style={styles.deviceSelectorBtn} onPress={() => { }}>
-                            <Text style={styles.deviceSelectorText}>Kibbler</Text>
-                            <FontAwesome5 name="caret-down" size={14} color="#fff" />
-                        </TouchableOpacity>
-                        */}
-                        <View style={styles.dashboardTitleRow}>
-                            <Text style={styles.headerText}>Dashboard</Text>
-                            <View style={styles.taglineBox}>
-                                <FontAwesome5 name="paw" size={12} color="#fff" style={styles.pawHeader} />
-                                <Text style={styles.taglineText}> Stay on top of Kibbler activity and insights</Text>
-                            </View>
-                            <View style={styles.headerData}>
-                                <View style={[styles.statusBadge, data?.device_status.status === 'online' ? styles.connected : styles.disconnected]}>
-                                    <View style={[
-                                        styles.statusDot, 
-                                        data?.device_status.status === 'online' ? styles.connectedDot : styles.disconnectedDot
-                                    ]} />
-                                    <Text style={styles.statusText}>
-                                        {data?.device_status.status
-                                            ? data.device_status.status.charAt(0).toUpperCase() + data.device_status.status.slice(1)
-                                            : 'Unknown'}
-                                    </Text>
+                <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+                <View style={styles.contentContainer}>
+                    <View style={styles.headerContent}>
+                        <View style={styles.logoSection}>
+                            <View style={styles.dashboardTitleRow}>
+                                <Text style={styles.headerText}>Dashboard</Text>
+                                <View style={styles.taglineBox}>
+                                    <FontAwesome5 name="paw" size={12} color="#fff" style={styles.pawHeader} />
+                                    <Text style={styles.taglineText}> Stay on top of Kibbler activity and insights</Text>
                                 </View>
-                                <View style={styles.batteryIndicator}>
-                                    <FontAwesome5 name={getBatteryIcon(data?.device_status.battery_level || 0)} size={16} color="#fff" style={styles.batteryIcon} />
-                                    <Text style={styles.batteryText}>{data?.device_status.battery_level}%</Text>
+                                <View style={styles.headerData}>
+                                    <View style={[styles.statusBadge, data?.device_status.status === 'online' ? styles.connected : styles.disconnected]}>
+                                        <View style={[
+                                            styles.statusDot,
+                                            data?.device_status.status === 'online' ? styles.connectedDot : styles.disconnectedDot
+                                        ]} />
+                                        <Text style={styles.statusText}>
+                                            {data?.device_status.status
+                                                ? data.device_status.status.charAt(0).toUpperCase() + data.device_status.status.slice(1)
+                                                : 'Unknown'}
+                                        </Text>
+                                    </View>
+                                    <View style={styles.batteryIndicator}>
+                                        <FontAwesome5 name={getBatteryIcon(data?.device_status.battery_level || 0)} size={16} color="#fff" style={styles.batteryIcon} />
+                                        <Text style={styles.batteryText}>{data?.device_status.battery_level}%</Text>
+                                    </View>
                                 </View>
                             </View>
                         </View>
                     </View>
+
+                    <View style={styles.subtabsOuterContainer}>
+                        <ScrollView
+                            horizontal
+                            showsHorizontalScrollIndicator={false}
+                            contentContainerStyle={styles.subtabsScrollContainer}
+                            style={styles.subtabsScrollView}
+                        >
+                            <TouchableOpacity
+                                style={[styles.subtab, activeTab === 'Stats' && styles.activeSubtab]}
+                                onPress={() => handleTabPress('Stats')}
+                            >
+                                <Text style={styles.subtabText}>Stats</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.subtab, activeTab === 'Device Status' && styles.activeSubtab]}
+                                onPress={() => handleTabPress('Device Status')}
+                            >
+                                <Text style={styles.subtabText}>Device Status</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.subtab, activeTab === 'Feeding Trend' && styles.activeSubtab]}
+                                onPress={() => handleTabPress('Feeding Trend')}
+                            >
+                                <Text style={styles.subtabText}>Feeding Trend</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.subtab, activeTab === 'Freshness Monitoring' && styles.activeSubtab]}
+                                onPress={() => handleTabPress('Freshness Monitoring')}
+                            >
+                                <Text style={styles.subtabText}>Freshness Monitoring</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.subtab, activeTab === 'Recent Activity' && styles.activeSubtab]}
+                                onPress={() => handleTabPress('Recent Activity')}
+                            >
+                                <Text style={styles.subtabText}>Recent Activity</Text>
+                            </TouchableOpacity>
+                        </ScrollView>
+                    </View>
+
+                    <View style={styles.headerLine} />
+
+                    <ScrollView
+                        ref={scrollViewRef}
+                        style={styles.scrollContainer}
+                        onScroll={(event) => {
+                            const scrollY = event.nativeEvent.contentOffset.y;
+                            const offsets = Object.entries(contentOffsets);
+
+                            for (let i = offsets.length - 1; i >= 0; i--) {
+                                const [tabName, offset] = offsets[i];
+                                if (scrollY >= offset - 50) {
+                                    setActiveTab(tabName);
+                                    break;
+                                }
+                            }
+                        }}
+                        scrollEventThrottle={16}
+                        bounces={false}
+                        overScrollMode="never"
+                        contentContainerStyle={{ paddingBottom: 80 }} // Add padding to avoid content being hidden under tab bar
+                    >
+                        <View onLayout={handleLayout('Stats')}>
+                            {renderStatsCards()}
+                        </View>
+
+                        <View onLayout={handleLayout('Device Status')}>
+                            {renderDeviceStatus()}
+                        </View>
+
+                        <View onLayout={handleLayout('Feeding Trend')}>
+                            {renderFeedingTrend()}
+                        </View>
+
+                        <View onLayout={handleLayout('Freshness Monitoring')}>
+                            {renderFreshnessMonitoring()}
+                        </View>
+
+                        <View onLayout={handleLayout('Recent Activity')}>
+                            {renderRecentActivity()}
+                        </View>
+                    </ScrollView>
                 </View>
             </ImageBackground>
-
-            <View style={styles.dashboardSubtabs}>
-                <TouchableOpacity
-                    style={[styles.subtab, activeTab === 'Stats' && styles.activeSubtab]}
-                    onPress={() => setActiveTab('Stats')}
-                >
-                    <Text style={styles.subtabText}>Stats</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.subtab, activeTab === 'Device Status' && styles.activeSubtab]}
-                    onPress={() => setActiveTab('Device Status')}
-                >
-                    <Text style={styles.subtabText}>Device Status</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.subtab, activeTab === 'Feeding Trend' && styles.activeSubtab]}
-                    onPress={() => setActiveTab('Feeding Trend')}
-                >
-                    <Text style={styles.subtabText}>Feeding Trend</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.subtab, activeTab === 'Freshness Monitoring' && styles.activeSubtab]}
-                    onPress={() => setActiveTab('Freshness Monitoring')}
-                >
-                    <Text style={styles.subtabText}>Freshness Monitoring</Text>
-                </TouchableOpacity>
-                <TouchableOpacity
-                    style={[styles.subtab, activeTab === 'Recent Activity' && styles.activeSubtab]}
-                    onPress={() => setActiveTab('Recent Activity')}
-                >
-                    <Text style={styles.subtabText}>Recent Activity</Text>
-                </TouchableOpacity>
-            </View>
-
-            <View style={styles.headerLine} />
-
-            {activeTab === 'Stats' && renderStatsCards()}
-            {activeTab === 'Device Status' && renderDeviceStatus()}
-            {activeTab === 'Feeding Trend' && renderFeedingTrend()}
-            {activeTab === 'Freshness Monitoring' && renderFreshnessMonitoring()}
-            {activeTab === 'Recent Activity' && renderRecentActivity()}
-        </ScrollView>
+        </View>
     );
 };
 
 const styles = StyleSheet.create({
     container: {
         flex: 1,
-        backgroundColor: '#121212',
+    },
+    background: {
+        position: 'absolute',
+        top: 0,
+        left: 0,
+        right: 0,
+        bottom: 0,
+        zIndex: 0,
+    },
+    contentContainer: {
+        flex: 1,
+        backgroundColor: 'rgba(18, 18, 18, 0.7)', // Semi-transparent overlay for readability
     },
     loadingContainer: {
         flex: 1,
@@ -768,30 +982,14 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         backgroundColor: '#121212',
     },
-    header: {
-        height: 240,
-        paddingHorizontal: 20,
-        paddingTop: 50,
-    },
     headerContent: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
+        paddingHorizontal: 20,
+        paddingTop: StatusBar.currentHeight || 50,
+        height: 210
     },
     logoSection: {
         flexDirection: 'row',
         alignItems: 'center',
-    },
-    deviceSelectorBtn: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginRight: 15,
-    },
-    deviceSelectorText: {
-        color: '#fff',
-        fontFamily: 'Poppins-SemiBold',
-        fontSize: 18,
-        marginRight: 5,
     },
     dashboardTitleRow: {
         flexDirection: 'column',
@@ -818,8 +1016,7 @@ const styles = StyleSheet.create({
     headerData: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginTop: 35,
-        
+        marginTop: 20,
     },
     statusBadge: {
         flexDirection: 'row',
@@ -828,12 +1025,13 @@ const styles = StyleSheet.create({
         paddingVertical: 5,
         borderRadius: 15,
         marginRight: 10,
+        backgroundColor: 'rgba(195, 195, 195, 0.2)',
     },
     connected: {
-        backgroundColor: 'rgba(195, 195, 195, 0.2)', 
+        backgroundColor: 'rgba(195, 195, 195, 0.2)',
     },
     disconnected: {
-        backgroundColor: 'rgba(195, 195, 195, 0.2)', 
+        backgroundColor: 'rgba(195, 195, 195, 0.2)',
     },
     statusDot: {
         width: 8,
@@ -853,12 +1051,12 @@ const styles = StyleSheet.create({
         fontSize: 12,
     },
     batteryIndicator: {
-        flexDirection: 'row',      
-        alignItems: 'center',      
-        justifyContent: 'center',  
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
         width: 75,
         height: 30,
-        backgroundColor: 'rgba(195, 195, 195, 0.2)', 
+        backgroundColor: 'rgba(195, 195, 195, 0.2)',
         borderRadius: 50
     },
     batteryIcon: {
@@ -869,28 +1067,37 @@ const styles = StyleSheet.create({
         fontFamily: 'Poppins',
         fontSize: 12,
     },
-    dashboardSubtabs: {
-        flexDirection: 'row',
-        justifyContent: 'space-around',
+    subtabsOuterContainer: {
+        height: 50,
+        backgroundColor: 'rgba(18, 18, 18, 0.7)', // Match contentContainer for consistency
+    },
+    subtabsScrollContainer: {
+        alignItems: 'center',
         paddingHorizontal: 10,
-        paddingVertical: 15,
+    },
+    subtabsScrollView: {
+        height: 50,
     },
     subtab: {
-        paddingHorizontal: 10,
-        paddingVertical: 5,
+        paddingHorizontal: 15,
+        paddingVertical: 8,
+        justifyContent: 'center',
+        height: 40,
+        marginHorizontal: 2,
     },
     activeSubtab: {
         borderBottomWidth: 2,
-        borderBottomColor: '#dd2c00',
+        borderBottomColor: '#6a47c2ff',
+
     },
     subtabText: {
         color: '#fff',
-        fontFamily: 'Poppins',
+        fontFamily: 'Poppins-SemiBold',
         fontSize: 12,
     },
     headerLine: {
         height: 1,
-        backgroundColor: '#4d5259',
+        backgroundColor: 'rgba(77, 82, 89, 0.7)',
         width: '100%',
         marginBottom: 20,
     },
@@ -903,7 +1110,7 @@ const styles = StyleSheet.create({
     },
     statCard: {
         width: '48%',
-        backgroundColor: '#1e1e1e',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
         borderRadius: 12,
         padding: 15,
         marginBottom: 15,
@@ -933,8 +1140,8 @@ const styles = StyleSheet.create({
     },
     statContent: {},
     statLabel: {
-        color: '#a0a0a0',
-        fontFamily: 'Poppins',
+        color: '#FFFFFF',
+        fontFamily: 'Poppins-SemiBold',
         fontSize: 12,
         marginBottom: 5,
     },
@@ -945,7 +1152,7 @@ const styles = StyleSheet.create({
         marginBottom: 5,
     },
     statChange: {
-        fontFamily: 'Poppins',
+        fontFamily: 'Poppins-Medium',
         fontSize: 12,
     },
     positive: {
@@ -958,7 +1165,7 @@ const styles = StyleSheet.create({
         color: '#9C27B0',
     },
     panel: {
-        backgroundColor: '#1e1e1e',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
         borderRadius: 12,
         padding: 15,
         marginHorizontal: 15,
@@ -974,16 +1181,6 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontFamily: 'Poppins-SemiBold',
         fontSize: 16,
-    },
-    customDropdown: {
-        backgroundColor: '#2d2d2d',
-        borderRadius: 8,
-        paddingHorizontal: 10,
-        paddingVertical: 5,
-    },
-    dropdownSelected: {
-        flexDirection: 'row',
-        alignItems: 'center',
     },
     deviceMetrics: {
         marginBottom: 15,
@@ -1020,8 +1217,8 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     metricLabel: {
-        color: '#a0a0a0',
-        fontFamily: 'Poppins',
+        color: '#e8e8e8ff',
+        fontFamily: 'Poppins-Medium',
         fontSize: 12,
     },
     metricValue: {
@@ -1049,6 +1246,8 @@ const styles = StyleSheet.create({
     },
     chartContainer: {
         alignItems: 'center',
+        backgroundColor: 'transparent',
+        marginRight: 50
     },
     controlMetrics: {
         marginTop: 10,
@@ -1067,7 +1266,7 @@ const styles = StyleSheet.create({
         width: 32,
         height: 32,
         borderRadius: 16,
-        backgroundColor: '#2d2d2d',
+        backgroundColor: 'rgba(255, 255, 255, 0.2)',
         justifyContent: 'center',
         alignItems: 'center',
         marginRight: 10,
@@ -1121,20 +1320,57 @@ const styles = StyleSheet.create({
         fontSize: 14,
         marginBottom: 3,
     },
-    petNameBadge: {
-        backgroundColor: '#dd2c00',
-        color: '#fff',
-        borderRadius: 4,
-        paddingHorizontal: 4,
-        paddingVertical: 2,
-        fontSize: 12,
-        fontFamily: 'Poppins-SemiBold',
-        marginRight: 5,
-    },
     activityTime: {
         color: '#a0a0a0',
         fontFamily: 'Poppins',
         fontSize: 12,
+    },
+    scrollContainer: {
+        flex: 1,
+    },
+    dropdownContainer: {
+        position: 'relative',
+        zIndex: 1000,
+    },
+    dropdownButton: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        backgroundColor: 'rgba(255, 255, 255, 0.1)',
+        borderRadius: 50,
+        paddingHorizontal: 10,
+        paddingVertical: 8,
+        minWidth: 120,
+    },
+    dropdownButtonText: {
+        color: '#fff',
+        fontFamily: 'Poppins',
+        fontSize: 14,
+        marginRight: 8,
+    },
+    dropdownMenu: {
+        position: 'absolute',
+        top: 40,
+        right: 0,
+        backgroundColor: 'rgba(255, 255, 255, 0.3)',
+        borderRadius: 8,
+        minWidth: 150,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 2 },
+        shadowOpacity: 0.3,
+        shadowRadius: 4,
+        elevation: 5,
+        zIndex: 1001,
+    },
+    dropdownMenuItem: {
+        paddingHorizontal: 15,
+        paddingVertical: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#rgba(255, 255, 255, 0.1)',
+    },
+    dropdownMenuItemText: {
+        color: '#fff',
+        fontFamily: 'Poppins',
+        fontSize: 14,
     },
 });
 
