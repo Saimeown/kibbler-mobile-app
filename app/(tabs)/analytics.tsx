@@ -860,10 +860,11 @@ const styles = StyleSheet.create({
     marginBottom: 20,
   },
   statCard: {
-    width: '50%',
+    width: '48%',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
     borderRadius: 12,
     padding: 15,
+    marginBottom: 15,
   },
   statHeader: {
     flexDirection: 'row',
