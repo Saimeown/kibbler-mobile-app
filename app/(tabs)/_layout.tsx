@@ -68,6 +68,7 @@ const TabsLayout = () => {
         name="analytics"
         options={{
           headerTitle: 'Analytics',
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <AnimatedTabIcon
             focused={focused}
