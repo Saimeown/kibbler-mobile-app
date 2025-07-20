@@ -98,10 +98,26 @@ const TabsLayout = () => {
         name="notifications"
         options={{
           headerTitle: 'Notifications',
+          headerShown: false,
           tabBarIcon: ({ color, size, focused }) => (
             <AnimatedTabIcon
             focused={focused}
               name={focused ? 'notifications' : 'notifications-outline'}
+              size={size}
+              color={color}
+            />
+          )
+        }}
+      />
+      <Tabs.Screen
+        name="settings"
+        options={{
+          headerTitle: 'Settings',
+          headerShown: false,
+          tabBarIcon: ({ color, size, focused }) => (
+            <AnimatedTabIcon
+            focused={focused}
+              name={focused ? 'settings' : 'settings-outline'}
               size={size}
               color={color}
             />
