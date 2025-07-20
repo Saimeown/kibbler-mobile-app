@@ -1,30 +1,29 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
   StyleSheet,
   StatusBar,
   ImageBackground,
-  ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Dimensions,
   TextInput,
   FlatList,
   Modal,
-  Pressable
+  ScrollView
 } from 'react-native';
 import { useFonts } from 'expo-font';
 import { FontAwesome5 } from '@expo/vector-icons';
 import { initializeApp } from 'firebase/app';
-import { getDatabase, ref, onValue, set, update } from 'firebase/database';
+import { getDatabase, ref, onValue, set, update, get } from 'firebase/database';
+import RNPickerSelect from 'react-native-picker-select';
 
 // Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAWs_lSL0Z09pYVQ70lvxEaqQl6YSsE6tY",
   databaseURL: "https://kibbler-24518-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kibbler-24518",
-  appId: "1:1093837743559:web:3d4a3a0a1f4e3f5c1a2f1f"
+  appId: "1:1093837743559:web:3d4a3a0a1f4e3f5c1a2f1f",
 };
 
 const app = initializeApp(firebaseConfig);
@@ -50,12 +49,21 @@ const defaultPetNames = [
   "Nori", "Mika", "Sora", "Kenji", "Emi", "Yui", "Riko", "Toshi", "Nana", "Ren",
   "Kumi", "Hiro", "Mari", "Taku", "Saya", "Yuma", "Kiko", "Naoki", "Ami", "Rei",
   "Tomi", "Haru", "Mei", "Sho", "Airi", "Kazu", "Hanae", "Riku", "Chika", "Yoru",
-  "Ayumi", "Suzu", "Kiyo", "Tomoha", "Shin", "Sena", "Kayo", "Risa", "Toma", "Yuri"
+  "Ayumi", "Suzu", "Kiyo", "Tomoha", "Shin", "Sena", "Kayo", "Risa", "Toma", "Yuri",
 ];
+
+const getBatteryIcon = (level?: number | null) => {
+  if (!level) return 'battery-empty';
+  if (level >= 80) return 'battery-full';
+  if (level >= 60) return 'battery-three-quarters';
+  if (level >= 40) return 'battery-half';
+  if (level >= 20) return 'battery-quarter';
+  return 'battery-empty';
+};
 
 const PetsScreen = () => {
   const [fontsLoaded] = useFonts({
-    'Poppins': require('../../assets/fonts/Poppins/Poppins-Light.ttf'),
+    Poppins: require('../../assets/fonts/Poppins/Poppins-Light.ttf'),
     'Poppins-SemiBold': require('../../assets/fonts/Poppins/Poppins-SemiBold.ttf'),
     'Poppins-Bold': require('../../assets/fonts/Poppins/Poppins-Bold.ttf'),
   });
@@ -71,6 +79,9 @@ const PetsScreen = () => {
   const [tagRegistrationMode, setTagRegistrationMode] = useState(false);
   const [detectedTag, setDetectedTag] = useState<string | null>(null);
   const [batteryLevel, setBatteryLevel] = useState<number | null>(null);
+  const [deleteModalVisible, setDeleteModalVisible] = useState(false);
+  const [nameToDelete, setNameToDelete] = useState<string | null>(null);
+  const [registerButtonText, setRegisterButtonText] = useState('Register');
 
   useEffect(() => {
     const dbRef = ref(database, '/devices/kibbler_001');
@@ -81,12 +92,24 @@ const PetsScreen = () => {
         const processedData = processPetData(firebaseData);
         setData(processedData);
       } else {
-        setData({
-          pet_stats: {},
-          all_names: defaultPetNames,
-          assigned_names: [],
-          error: 'Could not load pet data'
-        });
+        set(ref(database, '/devices/kibbler_001/default_pet_names'), defaultPetNames)
+          .then(() => {
+            setData({
+              pet_stats: {},
+              all_names: defaultPetNames,
+              assigned_names: [],
+              error: 'Could not load pet data, initialized default names',
+            });
+          })
+          .catch((error) => {
+            console.error('Error initializing default pet names:', error);
+            setData({
+              pet_stats: {},
+              all_names: defaultPetNames,
+              assigned_names: [],
+              error: 'Could not load pet data',
+            });
+          });
       }
       setLoading(false);
     }, (error) => {
@@ -95,12 +118,11 @@ const PetsScreen = () => {
         pet_stats: {},
         all_names: defaultPetNames,
         assigned_names: [],
-        error: 'Could not load pet data'
+        error: 'Could not load pet data',
       });
       setLoading(false);
     });
 
-    // Listen for battery level
     const batteryRef = ref(database, '/devices/kibbler_001/device_status/battery_level');
     onValue(batteryRef, (snapshot) => {
       setBatteryLevel(snapshot.val());
@@ -108,7 +130,6 @@ const PetsScreen = () => {
 
     return () => {
       unsubscribe();
-      // Clean up any listeners if needed
     };
   }, []);
 
@@ -117,11 +138,16 @@ const PetsScreen = () => {
       const feedingHistory = deviceData.feeding_history || {};
       const petRegistry = deviceData.pet_registry || {};
       const lastFedTimes = deviceData.last_fed_times || {};
+      const defaultPetNamesFromFirebase = deviceData.default_pet_names || [];
+
+      if (!defaultPetNamesFromFirebase || defaultPetNamesFromFirebase.length === 0) {
+        set(ref(database, '/devices/kibbler_001/default_pet_names'), defaultPetNames)
+          .catch((error) => console.error('Error initializing default pet names:', error));
+      }
 
       const petStats: Record<string, Pet> = {};
       const assignedNames: string[] = [];
 
-      // Process pet registry first
       Object.entries(petRegistry).forEach(([uid, name]) => {
         const uidStr = uid.toString();
         petStats[uidStr] = {
@@ -133,7 +159,6 @@ const PetsScreen = () => {
         assignedNames.push(name as string);
       });
 
-      // Process feeding history
       Object.values(feedingHistory).forEach((feeding: any) => {
         if (!feeding?.uid) return;
 
@@ -161,18 +186,17 @@ const PetsScreen = () => {
             day: 'numeric',
             hour: 'numeric',
             minute: '2-digit',
-            hour12: true
+            hour12: true,
           });
         }
       });
 
-      // Process inactive hours
       const currentTime = Date.now() / 1000;
-      Object.values(petStats).forEach(pet => {
+      Object.values(petStats).forEach((pet) => {
         const lastFed = lastFedTimes[pet.uid];
 
         if (typeof lastFed === 'number') {
-          const lastFedTime = (lastFed > currentTime * 1000) ? lastFed / 1000 : lastFed;
+          const lastFedTime = lastFed > currentTime * 1000 ? lastFed / 1000 : lastFed;
           pet.inactive_hours = Math.round((currentTime - lastFedTime) / 3600);
         } else if (typeof lastFed === 'string') {
           const lastFedTime = new Date(lastFed).getTime() / 1000;
@@ -186,9 +210,13 @@ const PetsScreen = () => {
         }
       });
 
-      // Prepare all names
       const registryNames = Object.values(petRegistry);
-      const allNames = Array.from(new Set([...defaultPetNames, ...registryNames])).sort();
+      const allNames = Array.from(
+        new Set([
+          ...(defaultPetNamesFromFirebase.length > 0 ? defaultPetNamesFromFirebase : defaultPetNames),
+          ...registryNames,
+        ])
+      ).sort();
 
       return {
         pet_stats: petStats,
@@ -201,33 +229,88 @@ const PetsScreen = () => {
         pet_stats: {},
         all_names: defaultPetNames,
         assigned_names: [],
-        error: 'Error processing pet data'
+        error: 'Error processing pet data',
       };
     }
   };
 
-  const getBatteryIcon = (level?: number | null) => {
-    if (!level) return 'battery-empty';
-    if (level >= 80) return 'battery-full';
-    if (level >= 60) return 'battery-three-quarters';
-    if (level >= 40) return 'battery-half';
-    if (level >= 20) return 'battery-quarter';
-    return 'battery-empty';
+  const addNewPetName = async () => {
+    if (!newName.trim()) {
+      alert('Please enter a pet name');
+      return;
+    }
+    try {
+      const defaultNamesRef = ref(database, '/devices/kibbler_001/default_pet_names');
+      const snapshot = await get(defaultNamesRef);
+      const currentNames = snapshot.val() || [];
+      if (currentNames.includes(newName.trim())) {
+        alert('Pet name already exists!');
+        return;
+      }
+      await set(defaultNamesRef, [...currentNames, newName.trim()]);
+      setNewName('');
+      alert('Pet name added successfully!');
+    } catch (error) {
+      console.error('Error adding pet name:', error);
+      alert('Failed to add pet name');
+    }
+  };
+
+  const deletePetName = async (name: string) => {
+    try {
+      const defaultNamesRef = ref(database, '/devices/kibbler_001/default_pet_names');
+      const snapshot = await get(defaultNamesRef);
+      const currentNames = snapshot.val() || [];
+      const updatedNames = currentNames.filter((n: string) => n !== name);
+      await set(defaultNamesRef, updatedNames);
+      alert('Pet name deleted successfully!');
+    } catch (error) {
+      console.error('Error deleting pet name:', error);
+      alert('Failed to delete pet name');
+    }
   };
 
   const handleUpdatePetName = async (uid: string, newName: string) => {
     try {
-      // Update pet registry
-      const updates = {
-        [`/devices/kibbler_001/pet_registry/${uid}`]: newName
-      };
-
-      // Update feeding history (would need to scan all records in a real app)
-      // This is simplified - in a real app you'd need to update all references
-
+      const updates: { [key: string]: any } = {};
+      const oldNameSnapshot = await get(ref(database, `/devices/kibbler_001/pet_registry/${uid}`));
+      const oldName = oldNameSnapshot.val();
+      updates[`/devices/kibbler_001/pet_registry/${uid}`] = newName;
+      const feedingSnapshot = await get(ref(database, '/devices/kibbler_001/feeding_history'));
+      const feedingHistory = feedingSnapshot.val() || {};
+      Object.keys(feedingHistory).forEach((key) => {
+        if (feedingHistory[key].uid === uid) {
+          updates[`/devices/kibbler_001/feeding_history/${key}/pet_name`] = newName;
+        }
+      });
+      const activitiesSnapshot = await get(ref(database, '/devices/kibbler_001/recent_activities'));
+      const activities = activitiesSnapshot.val() || {};
+      Object.keys(activities).forEach((key) => {
+        const activity = activities[key];
+        if (activity.uid === uid) {
+          updates[`/devices/kibbler_001/recent_activities/${key}/pet_name`] = newName;
+        }
+        if (oldName && activity.message?.includes(oldName)) {
+          updates[`/devices/kibbler_001/recent_activities/${key}/message`] = activity.message.replace(oldName, newName);
+        }
+      });
+      const dailySnapshot = await get(ref(database, '/devices/kibbler_001/history/daily'));
+      const dailyHistory = dailySnapshot.val() || {};
+      Object.keys(dailyHistory).forEach((date) => {
+        if (dailyHistory[date].feedings) {
+          Object.keys(dailyHistory[date].feedings).forEach((key) => {
+            if (dailyHistory[date].feedings[key].uid === uid) {
+              updates[`/devices/kibbler_001/history/daily/${date}/feedings/${key}/pet_name`] = newName;
+            }
+          });
+        }
+      });
+      const lastFedSnapshot = await get(ref(database, '/devices/kibbler_001/stats/last_fed_pet'));
+      const lastFedPet = lastFedSnapshot.val();
+      if (lastFedPet?.includes(`(${uid})`)) {
+        updates[`/devices/kibbler_001/stats/last_fed_pet`] = `${newName} (${uid})`;
+      }
       await update(ref(database), updates);
-
-      // Show success (you might want to use a toast or alert)
       alert('Pet name updated successfully!');
     } catch (error) {
       console.error('Error updating pet name:', error);
@@ -239,18 +322,30 @@ const PetsScreen = () => {
     try {
       setTagRegistrationMode(true);
       setDetectedTag(null);
+      setRegisterButtonText('Register');
       await set(ref(database, '/devices/kibbler_001/tag_registration_mode'), true);
-
-      // Listen for new tags
       const tagRef = ref(database, '/devices/kibbler_001/last_detected_tag');
-      onValue(tagRef, (snapshot) => {
+      onValue(tagRef, async (snapshot) => {
         const tagData = snapshot.val();
         if (tagData?.uid && (!detectedTag || detectedTag !== tagData.uid)) {
           setDetectedTag(tagData.uid);
+          const petRef = ref(database, `/devices/kibbler_001/pet_registry/${tagData.uid}`);
+          const snapshot = await get(petRef);
+          setRegisterButtonText(snapshot.exists() ? 'Update Registration' : 'Register');
         }
+      }, (error) => {
+        console.error('Error listening for tag:', error);
+        alert('Failed to detect tag. Please try again.');
+        setRegisterModalVisible(false);
+        setNewName('');
+        stopTagRegistration();
       });
     } catch (error) {
       console.error('Error starting tag registration:', error);
+      alert('Failed to start tag registration. Please try again.');
+      setRegisterModalVisible(false);
+      setNewName('');
+      stopTagRegistration();
     }
   };
 
@@ -258,6 +353,7 @@ const PetsScreen = () => {
     try {
       setTagRegistrationMode(false);
       setDetectedTag(null);
+      setRegisterButtonText('Register');
       await set(ref(database, '/devices/kibbler_001/tag_registration_mode'), false);
       await set(ref(database, '/devices/kibbler_001/last_detected_tag'), null);
     } catch (error) {
@@ -270,11 +366,49 @@ const PetsScreen = () => {
       alert('Please select a name for the tag');
       return;
     }
-
     try {
-      await set(ref(database, `/devices/kibbler_001/pet_registry/${detectedTag}`), newName); // Fixed: Removed extra parenthesis and ensured two arguments
+      const updates: { [key: string]: any } = {};
+      const oldNameSnapshot = await get(ref(database, `/devices/kibbler_001/pet_registry/${detectedTag}`));
+      const oldName = oldNameSnapshot.val();
+      updates[`/devices/kibbler_001/pet_registry/${detectedTag}`] = newName;
+      const feedingSnapshot = await get(ref(database, '/devices/kibbler_001/feeding_history'));
+      const feedingHistory = feedingSnapshot.val() || {};
+      Object.keys(feedingHistory).forEach((key) => {
+        if (feedingHistory[key].uid === detectedTag) {
+          updates[`/devices/kibbler_001/feeding_history/${key}/pet_name`] = newName;
+        }
+      });
+      const activitiesSnapshot = await get(ref(database, '/devices/kibbler_001/recent_activities'));
+      const activities = activitiesSnapshot.val() || {};
+      Object.keys(activities).forEach((key) => {
+        const activity = activities[key];
+        if (activity.uid === detectedTag) {
+          updates[`/devices/kibbler_001/recent_activities/${key}/pet_name`] = newName;
+        }
+        if (oldName && activity.message?.includes(oldName)) {
+          updates[`/devices/kibbler_001/recent_activities/${key}/message`] = activity.message.replace(oldName, newName);
+        }
+      });
+      const dailySnapshot = await get(ref(database, '/devices/kibbler_001/history/daily'));
+      const dailyHistory = dailySnapshot.val() || {};
+      Object.keys(dailyHistory).forEach((date) => {
+        if (dailyHistory[date].feedings) {
+          Object.keys(dailyHistory[date].feedings).forEach((key) => {
+            if (dailyHistory[date].feedings[key].uid === detectedTag) {
+              updates[`/devices/kibbler_001/history/daily/${date}/feedings/${key}/pet_name`] = newName;
+            }
+          });
+        }
+      });
+      const lastFedSnapshot = await get(ref(database, '/devices/kibbler_001/stats/last_fed_pet'));
+      const lastFedPet = lastFedSnapshot.val();
+      if (lastFedPet?.includes(`(${detectedTag})`)) {
+        updates[`/devices/kibbler_001/stats/last_fed_pet`] = `${newName} (${detectedTag})`;
+      }
+      await update(ref(database), updates);
       alert('Tag registered successfully!');
       setRegisterModalVisible(false);
+      setNewName('');
       stopTagRegistration();
     } catch (error) {
       console.error('Error registering tag:', error);
@@ -306,37 +440,14 @@ const PetsScreen = () => {
         default:
           return 0;
       }
-    }).filter(pet =>
-      pet.name.toLowerCase().includes(searchTerm.toLowerCase())
-    );
+    }).filter((pet) => pet.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [data?.pet_stats, searchTerm, sortField, sortDirection]);
 
-  if (!fontsLoaded || loading) {
-    return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#dd2c00" />
-      </View>
-    );
-  }
-
-  if (data?.error) {
-    return (
-      <View style={styles.errorContainer}>
-        <FontAwesome5 name="exclamation-triangle" size={24} color="#ff6b6b" />
-        <Text style={styles.errorText}>{data.error}</Text>
-      </View>
-    );
-  }
-
-  return (
-    <View style={styles.container}>
-      <ImageBackground
-        source={require('../../assets/BG.png')}
-        style={styles.background}
-        resizeMode="cover"
-      >
-        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
-        <View style={styles.contentContainer}>
+  const sections = [
+    {
+      id: 'header',
+      render: () => (
+        <>
           <View style={styles.headerContent}>
             <View style={styles.logoSection}>
               <View style={styles.dashboardTitleRow}>
@@ -382,150 +493,201 @@ const PetsScreen = () => {
           </View>
 
           <View style={styles.headerLine} />
+        </>
+      ),
+    },
+    {
+      id: 'registeredPets',
+      render: () => (
+        <View style={styles.panel}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>
+              <FontAwesome5 name="dog" size={16} color="#fff" /> Registered Pets
+            </Text>
+          </View>
 
-          <ScrollView style={styles.scrollContainer} contentContainerStyle={{ paddingBottom: 80 }}>
-            {/* Registered Pets Panel */}
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
-                <Text style={styles.panelTitle}>
-                  <FontAwesome5 name="dog" size={16} color="#fff" /> Registered Pets
+          <View style={styles.searchContainer}>
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search pet names..."
+              placeholderTextColor="#a0a0a0"
+              value={searchTerm}
+              onChangeText={setSearchTerm}
+            />
+            <View style={styles.sortControls}>
+              <Text style={styles.sortText}>Sort by:</Text>
+              <View style={styles.sortSelect}>
+                <FontAwesome5 name="sort" size={14} color="#fff" />
+                <Text style={styles.sortSelectText}>
+                  {sortField === 'name' ? 'Name' : sortField === 'visits' ? 'Visits' : 'Inactive'}
                 </Text>
               </View>
-
-              <View style={styles.searchContainer}>
-                <TextInput
-                  style={styles.searchInput}
-                  placeholder="Search pet names..."
-                  placeholderTextColor="#a0a0a0"
-                  value={searchTerm}
-                  onChangeText={setSearchTerm}
-                />
-                <View style={styles.sortControls}>
-                  <Text style={styles.sortText}>Sort by:</Text>
-                  <View style={styles.sortSelect}>
-                    <FontAwesome5 name="sort" size={14} color="#fff" />
-                    <Text style={styles.sortSelectText}>
-                      {sortField === 'name' ? 'Name' :
-                        sortField === 'visits' ? 'Visits' : 'Inactive'}
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={styles.sortDirectionButton}
-                    onPress={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
-                  >
-                    <FontAwesome5
-                      name={sortDirection === 'asc' ? 'sort-amount-up' : 'sort-amount-down'}
-                      size={14}
-                      color="#fff"
-                    />
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.tableContainer}>
-                <View style={styles.tableHeader}>
-                  <Text style={styles.tableHeaderCell}>RFID Tag</Text>
-                  <Text style={styles.tableHeaderCell}>Pet Name</Text>
-                  <Text style={styles.tableHeaderCell}>Visits</Text>
-                  <Text style={styles.tableHeaderCell}>Last Fed</Text>
-                </View>
-
-                <FlatList
-                  data={sortedPets}
-                  keyExtractor={(item) => item.uid}
-                  renderItem={({ item }) => (
-                    <View style={styles.tableRow}>
-                      <Text style={styles.tableCell}>{item.uid.substring(0, 8)}</Text>
-                      <Text style={styles.tableCell}>{item.name}</Text>
-                      <Text style={styles.tableCell}>{item.visit_count}</Text>
-                      <Text style={styles.tableCell}>{item.last_visit_str}</Text>
-                      <TouchableOpacity
-                        style={styles.editButton}
-                        onPress={() => setSelectedPet(item)}
-                      >
-                        <Text style={styles.editButtonText}>Edit</Text>
-                      </TouchableOpacity>
-                    </View>
-                  )}
-                  ListEmptyComponent={
-                    <View style={styles.emptyRow}>
-                      <Text style={styles.emptyText}>No pets registered yet</Text>
-                    </View>
-                  }
-                />
-              </View>
-            </View>
-
-            {/* Available Names Panel */}
-            <View style={styles.panel}>
-              <View style={styles.panelHeader}>
-                <Text style={styles.panelTitle}>
-                  <FontAwesome5 name="tag" size={16} color="#fff" /> Available Pet Names
-                </Text>
-              </View>
-
-              <View style={styles.tagsContainer}>
-                {data?.all_names.map((name) => (
-                  <View
-                    key={name}
-                    style={[
-                      styles.nameTag,
-                      data.assigned_names.includes(name) && styles.assignedTag
-                    ]}
-                  >
-                    <Text style={styles.nameTagText}>{name}</Text>
-                    {data.assigned_names.includes(name) ? (
-                      <FontAwesome5 name="check" size={12} color="#4CAF50" />
-                    ) : (
-                      <FontAwesome5 name="times" size={12} color="#FF4747" />
-                    )}
-                  </View>
-                ))}
-              </View>
-
-              <View style={styles.addNameContainer}>
-                <Text style={styles.sectionTitle}>
-                  <FontAwesome5 name="plus" size={16} color="#fff" /> Add New Name
-                </Text>
-                <View style={styles.addNameForm}>
-                  <TextInput
-                    style={styles.nameInput}
-                    placeholder="Enter a new pet name!"
-                    placeholderTextColor="#a0a0a0"
-                    value={newName}
-                    onChangeText={setNewName}
-                  />
-                  <TouchableOpacity style={styles.addButton}>
-                    <Text style={styles.addButtonText}>Add</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              <View style={styles.instructionsContainer}>
-                <Text style={styles.sectionTitle}>
-                  <FontAwesome5 name="info-circle" size={16} color="#fff" /> How to Assign Names
-                </Text>
-                <View style={styles.instructionsList}>
-                  <Text style={styles.instructionText}>1. Scan your pet's RFID tag at the feeder</Text>
-                  <Text style={styles.instructionText}>2. Come to this page to see the new tag appear</Text>
-                  <Text style={styles.instructionText}>3. Select a name from the dropdown and click 'Update'</Text>
-                  <Text style={styles.instructionText}>4. The name will be used for all future feedings</Text>
-                </View>
-              </View>
-
               <TouchableOpacity
-                style={styles.registerButton}
-                onPress={() => setRegisterModalVisible(true)}
+                style={styles.sortDirectionButton}
+                onPress={() => setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc')}
               >
-                <FontAwesome5 name="plus" size={16} color="#fff" />
-                <Text style={styles.registerButtonText}>Register New Tag</Text>
+                <FontAwesome5
+                  name={sortDirection === 'asc' ? 'sort-amount-up' : 'sort-amount-down'}
+                  size={14}
+                  color="#fff"
+                />
               </TouchableOpacity>
             </View>
-          </ScrollView>
+          </View>
+
+          <View style={styles.tableContainer}>
+            <View style={styles.tableHeader}>
+              <Text style={styles.tableHeaderCell}>RFID Tag</Text>
+              <Text style={styles.tableHeaderCell}>Pet Name</Text>
+              <Text style={styles.tableHeaderCell}>Visits</Text>
+              <Text style={styles.tableHeaderCell}>Last Fed</Text>
+            </View>
+
+            <FlatList
+              data={sortedPets}
+              keyExtractor={(item) => item.uid}
+              renderItem={({ item }) => (
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableCell}>{item.uid.substring(0, 8)}</Text>
+                  <Text style={styles.tableCell}>{item.name}</Text>
+                  <Text style={styles.tableCell}>{item.visit_count}</Text>
+                  <Text style={styles.tableCell}>{item.last_visit_str}</Text>
+                  <TouchableOpacity
+                    style={styles.editButton}
+                    onPress={() => setSelectedPet(item)}
+                  >
+                    <Text style={styles.editButtonText}>Edit</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+              ListEmptyComponent={
+                <View style={styles.emptyRow}>
+                  <Text style={styles.emptyText}>No pets registered yet</Text>
+                </View>
+              }
+              nestedScrollEnabled={true}
+            />
+          </View>
+        </View>
+      ),
+    },
+    {
+      id: 'availableNames',
+      render: () => (
+        <View style={styles.panel}>
+          <View style={styles.panelHeader}>
+            <Text style={styles.panelTitle}>
+              <FontAwesome5 name="tag" size={16} color="#fff" /> Available Pet Names
+            </Text>
+          </View>
+
+          <View style={styles.tagsContainer}>
+            {data?.all_names.map((name) => (
+              <View
+                key={name}
+                style={[
+                  styles.nameTag,
+                  data.assigned_names.includes(name) && styles.assignedTag,
+                ]}
+              >
+                <Text style={styles.nameTagText}>{name}</Text>
+                {data.assigned_names.includes(name) ? (
+                  <FontAwesome5 name="check" size={12} color="#4CAF50" />
+                ) : (
+                  <TouchableOpacity
+                    onPress={() => {
+                      setNameToDelete(name);
+                      setDeleteModalVisible(true);
+                    }}
+                  >
+                    <FontAwesome5 name="trash" size={12} color="#FF4747" />
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+          </View>
+
+          <View style={styles.addNameContainer}>
+            <Text style={styles.sectionTitle}>
+              <FontAwesome5 name="plus" size={16} color="#fff" /> Add New Name
+            </Text>
+            <View style={styles.addNameForm}>
+              <TextInput
+                style={styles.nameInput}
+                placeholder="Enter a new pet name!"
+                placeholderTextColor="#a0a0a0"
+                value={newName}
+                onChangeText={setNewName}
+              />
+              <TouchableOpacity style={styles.addButton} onPress={addNewPetName}>
+                <Text style={styles.addButtonText}>Add</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.instructionsContainer}>
+            <Text style={styles.sectionTitle}>
+              <FontAwesome5 name="info-circle" size={16} color="#fff" /> How to Assign Names
+            </Text>
+            <View style={styles.instructionsList}>
+              <Text style={styles.instructionText}>1. Scan your pet's RFID tag at the feeder</Text>
+              <Text style={styles.instructionText}>2. Come to this page to see the new tag appear</Text>
+              <Text style={styles.instructionText}>3. Select a name from the dropdown and click 'Update'</Text>
+              <Text style={styles.instructionText}>4. The name will be used for all future feedings</Text>
+            </View>
+          </View>
+
+          <TouchableOpacity
+            style={styles.registerButton}
+            onPress={() => {
+              setRegisterModalVisible(true);
+              startTagRegistration();
+            }}
+            accessibilityLabel="Register new pet tag"
+          >
+            <FontAwesome5 name="plus" size={16} color="#fff" />
+            <Text style={styles.registerButtonText}>Register New Tag</Text>
+          </TouchableOpacity>
+        </View>
+      ),
+    },
+  ];
+
+  if (!fontsLoaded || loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#dd2c00" />
+      </View>
+    );
+  }
+
+  if (data?.error) {
+    return (
+      <View style={styles.errorContainer}>
+        <FontAwesome5 name="exclamation-triangle" size={24} color="#ff6b6b" />
+        <Text style={styles.errorText}>{data.error}</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <ImageBackground
+        source={require('../../assets/BG.png')}
+        style={styles.background}
+        resizeMode="cover"
+      >
+        <StatusBar barStyle="light-content" backgroundColor="transparent" translucent />
+        <View style={styles.contentContainer}>
+          <FlatList
+            data={sections}
+            keyExtractor={(item) => item.id}
+            renderItem={({ item }) => item.render()}
+            contentContainerStyle={{ paddingBottom: 80 }}
+          />
         </View>
       </ImageBackground>
 
-      {/* Edit Pet Name Modal */}
       <Modal
         animationType="slide"
         transparent={true}
@@ -537,28 +699,43 @@ const PetsScreen = () => {
             <Text style={styles.modalTitle}>Edit Pet Name</Text>
             <Text style={styles.modalSubtitle}>RFID: {selectedPet?.uid.substring(0, 8)}</Text>
 
-            <View style={styles.modalPicker}>
-              <FontAwesome5 name="chevron-down" size={16} color="#fff" style={styles.pickerIcon} />
-              <Text style={styles.pickerText}>
-                {selectedPet?.name || 'Select a name'}
-              </Text>
-            </View>
+            <RNPickerSelect
+              onValueChange={(value) =>
+                setSelectedPet((prev) =>
+                  prev ? { ...prev, name: value || prev.name } : null
+                )
+              }
+              items={(data?.all_names || []).map((name) => ({
+                label: name,
+                value: name,
+              }))}
+              style={{
+                inputIOS: styles.pickerText,
+                inputAndroid: styles.pickerText,
+                placeholder: styles.pickerText,
+                viewContainer: styles.modalPicker,
+              }}
+              value={selectedPet?.name}
+              placeholder={{ label: 'Select a name', value: '' }}
+            />
 
             <View style={styles.modalButtons}>
               <TouchableOpacity
                 style={[styles.modalButton, styles.cancelButton]}
                 onPress={() => setSelectedPet(null)}
+                accessibilityLabel="Cancel edit pet name"
               >
                 <Text style={styles.modalButtonText}>Cancel</Text>
               </TouchableOpacity>
               <TouchableOpacity
                 style={[styles.modalButton, styles.saveButton]}
                 onPress={() => {
-                  if (selectedPet) {
+                  if (selectedPet && selectedPet.name) {
                     handleUpdatePetName(selectedPet.uid, selectedPet.name);
                     setSelectedPet(null);
                   }
                 }}
+                accessibilityLabel="Save pet name"
               >
                 <Text style={styles.modalButtonText}>Save</Text>
               </TouchableOpacity>
@@ -567,18 +744,43 @@ const PetsScreen = () => {
         </View>
       </Modal>
 
-      {/* Register Tag Modal */}
       <Modal
         animationType="slide"
         transparent={true}
         visible={registerModalVisible}
-        onRequestClose={() => setRegisterModalVisible(false)}
+        onRequestClose={() => {
+          setRegisterModalVisible(false);
+          setNewName('');
+          stopTagRegistration();
+        }}
       >
-        <View style={styles.modalOverlay}>
+        <View
+          style={styles.modalOverlay}
+          onTouchStart={(e) => {
+            if (e.target === e.currentTarget) {
+              setRegisterModalVisible(false);
+              setNewName('');
+              stopTagRegistration();
+            }
+          }}
+        >
           <View style={styles.modalContainer}>
-            <Text style={styles.modalTitle}>
-              <FontAwesome5 name="rfid" size={16} color="#fff" /> Register New Pet Tag
-            </Text>
+            <View style={styles.modalHeader}>
+              <Text style={styles.modalTitle}>
+                <FontAwesome5 name="rfid" size={16} color="#fff" /> Register New Pet Tag
+              </Text>
+              <TouchableOpacity
+                style={styles.closeModalButton}
+                onPress={() => {
+                  setRegisterModalVisible(false);
+                  setNewName('');
+                  stopTagRegistration();
+                }}
+                accessibilityLabel="Close register tag modal"
+              >
+                <Text style={styles.closeModalText}>×</Text>
+              </TouchableOpacity>
+            </View>
 
             {!detectedTag ? (
               <View style={styles.scanningContainer}>
@@ -588,6 +790,7 @@ const PetsScreen = () => {
                   <View style={styles.wave} />
                   <View style={styles.wave} />
                 </View>
+                
               </View>
             ) : (
               <View style={styles.tagDetectedContainer}>
@@ -599,32 +802,86 @@ const PetsScreen = () => {
                 </View>
 
                 <Text style={styles.modalLabel}>Pet Name:</Text>
-                <View style={styles.modalPicker}>
-                  <FontAwesome5 name="chevron-down" size={16} color="#fff" style={styles.pickerIcon} />
-                  <Text style={styles.pickerText}>
-                    {newName || 'Select a name'}
-                  </Text>
-                </View>
+                <RNPickerSelect
+                  onValueChange={(value) => setNewName(value || '')}
+                  items={(data?.all_names || []).map((name) => ({
+                    label: name,
+                    value: name,
+                  }))}
+                  style={{
+                    inputIOS: styles.pickerText,
+                    inputAndroid: styles.pickerText,
+                    placeholder: styles.pickerText,
+                    viewContainer: styles.modalPicker,
+                  }}
+                  value={newName}
+                  placeholder={{ label: 'Select a name', value: '' }}
+                />
 
                 <View style={styles.modalButtons}>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.cancelButton]}
                     onPress={() => {
                       setRegisterModalVisible(false);
+                      setNewName('');
                       stopTagRegistration();
                     }}
+                    accessibilityLabel="Cancel tag registration"
                   >
                     <Text style={styles.modalButtonText}>Cancel</Text>
                   </TouchableOpacity>
                   <TouchableOpacity
                     style={[styles.modalButton, styles.saveButton]}
                     onPress={registerTag}
+                    accessibilityLabel={registerButtonText === 'Register' ? 'Register tag' : 'Update tag registration'}
                   >
-                    <Text style={styles.modalButtonText}>Register</Text>
+                    <Text style={styles.modalButtonText}>{registerButtonText}</Text>
                   </TouchableOpacity>
                 </View>
               </View>
             )}
+          </View>
+        </View>
+      </Modal>
+
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={deleteModalVisible}
+        onRequestClose={() => setDeleteModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContainer}>
+            <Text style={styles.modalTitle}>Delete Name?</Text>
+            <Text style={styles.modalSubtitle}>
+              Remove "{nameToDelete}" from available names?
+            </Text>
+
+            <View style={styles.modalButtons}>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.cancelButton]}
+                onPress={() => {
+                  setDeleteModalVisible(false);
+                  setNameToDelete(null);
+                }}
+                accessibilityLabel="Cancel delete name"
+              >
+                <Text style={styles.modalButtonText}>Cancel</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.modalButton, styles.deleteButton]}
+                onPress={() => {
+                  if (nameToDelete) {
+                    deletePetName(nameToDelete);
+                    setDeleteModalVisible(false);
+                    setNameToDelete(null);
+                  }
+                }}
+                accessibilityLabel="Confirm delete name"
+              >
+                <Text style={styles.modalButtonText}>Delete</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
       </Modal>
@@ -669,7 +926,7 @@ const styles = StyleSheet.create({
   headerContent: {
     paddingHorizontal: 20,
     paddingTop: StatusBar.currentHeight || 50,
-    height: 210
+    height: 210,
   },
   logoSection: {
     flexDirection: 'row',
@@ -677,7 +934,7 @@ const styles = StyleSheet.create({
   },
   dashboardTitleRow: {
     flexDirection: 'column',
-    marginTop: 20
+    marginTop: 20,
   },
   headerText: {
     color: '#FFFFFF',
@@ -735,7 +992,7 @@ const styles = StyleSheet.create({
     width: 75,
     height: 30,
     backgroundColor: 'rgba(195, 195, 195, 0.2)',
-    borderRadius: 50
+    borderRadius: 50,
   },
   batteryIcon: {
     marginRight: 5,
@@ -777,10 +1034,6 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(77, 82, 89, 0.7)',
     width: '100%',
     marginBottom: 20,
-  },
-  scrollContainer: {
-    flex: 1,
-    paddingHorizontal: 15,
   },
   panel: {
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
@@ -993,11 +1246,24 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     padding: 20,
   },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+  },
   modalTitle: {
     color: '#fff',
     fontFamily: 'Poppins-SemiBold',
     fontSize: 18,
-    marginBottom: 5,
+  },
+  closeModalButton: {
+    padding: 10,
+  },
+  closeModalText: {
+    color: '#fff',
+    fontFamily: 'Poppins-SemiBold',
+    fontSize: 20,
   },
   modalSubtitle: {
     color: '#a0a0a0',
@@ -1019,9 +1285,6 @@ const styles = StyleSheet.create({
     padding: 12,
     marginBottom: 15,
   },
-  pickerIcon: {
-    marginRight: 10,
-  },
   pickerText: {
     flex: 1,
     color: '#fff',
@@ -1031,6 +1294,7 @@ const styles = StyleSheet.create({
   modalButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
+    marginTop: 15,
   },
   modalButton: {
     flex: 1,
@@ -1040,11 +1304,16 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   cancelButton: {
-    backgroundColor: 'rgba(255, 255, 255, 0.1)',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     marginRight: 10,
+    borderWidth: 1,
+    borderColor: '#fff',
   },
   saveButton: {
     backgroundColor: '#dd2c00',
+  },
+  deleteButton: {
+    backgroundColor: '#FF4747',
   },
   modalButtonText: {
     color: '#fff',
@@ -1066,6 +1335,7 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     height: 30,
+    marginBottom: 15,
   },
   wave: {
     width: 6,
