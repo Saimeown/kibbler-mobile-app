@@ -837,7 +837,7 @@ const HomeScreen = () => {
     return (
         <View style={styles.container}>
             <ImageBackground
-                source={require('../../assets/BG.png')}
+                source={require('../../assets/main.png')}
                 style={styles.background}
                 resizeMode="cover"
             >
@@ -1069,7 +1069,7 @@ const styles = StyleSheet.create({
     },
     subtabsOuterContainer: {
         height: 50,
-        backgroundColor: 'rgba(18, 18, 18, 0.7)', // Match contentContainer for consistency
+        backgroundColor: 'rgba(0, 0, 0, 0.52)', // Match contentContainer for consistency
     },
     subtabsScrollContainer: {
         alignItems: 'center',
@@ -1087,7 +1087,7 @@ const styles = StyleSheet.create({
     },
     activeSubtab: {
         borderBottomWidth: 2,
-        borderBottomColor: '#6a47c2ff',
+        borderBottomColor: '#ff9100',
 
     },
     subtabText: {

@@ -37,7 +37,7 @@ const TabsLayout = () => {
   return (
     <Tabs
       screenOptions={{
-        tabBarActiveTintColor: '#FFFFFF',
+        tabBarActiveTintColor: '#ff9100',
         tabBarInactiveTintColor: '#cacacbff',
         tabBarStyle: styles.tabBar,
         tabBarLabelStyle: styles.tabBarLabel,
@@ -130,7 +130,7 @@ const TabsLayout = () => {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: 'rgba(26, 21, 35, 1)', // Semi-transparent white
+    backgroundColor: 'rgba(13, 13, 13, 1)', // Semi-transparent white
     borderRadius: 50,
     marginHorizontal: 15,
     marginBottom: 25,

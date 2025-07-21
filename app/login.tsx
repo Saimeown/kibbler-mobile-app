@@ -135,7 +135,7 @@ const LoginScreen = () => {
   return (
     <View style={styles.container}>
       <ImageBackground
-        source={require('../assets/BG.png')}
+        source={require('../assets/background.png')}
         style={styles.background}
         resizeMode="cover"
       >
@@ -148,14 +148,13 @@ const LoginScreen = () => {
           showsVerticalScrollIndicator={false}
         >
           <View style={styles.header}>
-            <Text style={styles.headerTitle}>
-              <Ionicons name="log-in" size={18} color="#fff" /> Kibbler
-            </Text>
             <ImageBackground
               source={require('../assets/Paw-Logo.png')}
               style={styles.logo}
               resizeMode="contain"
             />
+            
+            
           </View>
 
           <View style={styles.section}>
@@ -195,25 +194,16 @@ const LoginScreen = () => {
               disabled={isLoggingIn}
               accessibilityLabel="Login button"
             >
-              <Ionicons
-                name={isLoggingIn ? 'hourglass-outline' : 'log-in'}
-                size={16}
-                color="#fff"
-                style={isLoggingIn ? styles.spinner : null}
-              />
-              <Text style={styles.buttonText}>{isLoggingIn ? 'Logging in...' : 'Login'}</Text>
+        
+              <Text style={styles.buttonText}>{isLoggingIn ? '...' : 'Login'}</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.forgotLink}
-              onPress={handleForgotPasscode}
-              accessibilityLabel="Forgot passcode"
-            >
+            
               <Text style={styles.forgotText}>Forgot Passcode? Email Us</Text>
-            </TouchableOpacity>
+            
             <View style={styles.noDeviceContainer}>
               <Text style={styles.noDeviceText}>Don't have a device yet?</Text>
               <TouchableOpacity accessibilityLabel="Get Kibbler device">
-                <Text style={styles.getDeviceText}>Get your Kibbler device</Text>
+                <Text style={styles.getDeviceText}>Get your Kibbler here</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -257,7 +247,7 @@ const styles = StyleSheet.create({
   contentContainer: {
     backgroundColor: 'rgba(18, 18, 18, 0.7)',
     paddingTop: StatusBar.currentHeight || 50,
-    paddingBottom: 80,
+    paddingBottom: 400,
   },
   loadingContainer: {
     flex: 1,
@@ -268,23 +258,23 @@ const styles = StyleSheet.create({
   header: {
     paddingHorizontal: 20,
     paddingVertical: 15,
-    borderBottomWidth: 1,
-    borderBottomColor: 'rgba(77, 82, 89, 0.7)',
     alignItems: 'center',
   },
   headerTitle: {
     color: '#ff9100',
-    fontFamily: 'Poppins-SemiBold',
-    fontSize: 24,
+    fontFamily: 'Poppins-Bold',
+    fontSize: 20,
+    marginTop: 10
   },
   logo: {
     width: 60,
     height: 60,
-    marginTop: 10,
+    marginTop: 80,
   },
   section: {
     paddingHorizontal: 20,
     paddingVertical: 15,
+    marginTop: 35
   },
   formGroup: {
     marginBottom: 15,
@@ -294,16 +284,20 @@ const styles = StyleSheet.create({
     fontFamily: 'Poppins',
     fontSize: 14,
     marginBottom: 5,
+    marginLeft: 25
   },
   inputContainer: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
-    borderRadius: 8,
+    borderRadius: 50,
     paddingHorizontal: 10,
+    width: 330,
+    alignSelf: 'center',
   },
   inputIcon: {
     marginRight: 10,
+    marginLeft: 10
   },
   input: {
     flex: 1,
@@ -320,13 +314,14 @@ const styles = StyleSheet.create({
   loginButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#dd2c00',
-    borderRadius: 8,
+    backgroundColor: '#d25c02ff',
+    borderRadius: 50,
     paddingHorizontal: 15,
     paddingVertical: 12,
     justifyContent: 'center',
     width: '25%',
     alignSelf: 'center',
+    marginTop: 20
   },
   buttonDisabled: {
     opacity: 0.7,
@@ -335,7 +330,7 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontFamily: 'Poppins-SemiBold',
     fontSize: 14,
-    marginLeft: 10,
+    height: 20
   },
   spinner: {
     transform: [{ rotate: '360deg' }],
@@ -345,20 +340,22 @@ const styles = StyleSheet.create({
     marginVertical: 15,
   },
   forgotText: {
-    color: '#ff9100',
-    fontFamily: 'Poppins',
+    color: '#ffffff',
+    fontFamily: 'Poppins-SemiBold',
     fontSize: 13,
     textDecorationLine: 'none',
+    alignSelf: 'center',
+    marginTop: 30
   },
   noDeviceContainer: {
     alignItems: 'center',
     marginTop: 25,
   },
   noDeviceText: {
-    color: '#aaa',
+    color: '#ffffff',
     fontFamily: 'Poppins',
     fontSize: 13,
-    marginBottom: 10,
+    marginBottom: 1,
   },
   getDeviceText: {
     color: '#ff9100',
@@ -374,7 +371,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     padding: 15,
-    borderRadius: 8,
+    borderRadius: 50,
   },
   toastSuccess: {
     backgroundColor: 'rgba(76, 175, 80, 0.9)',
