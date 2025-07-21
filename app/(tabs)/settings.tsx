@@ -238,7 +238,7 @@ const SettingsScreen = () => {
   return (
     <View style={styles.container}>
       <ImageBackground
-        source={require('../../assets/BG.png')}
+        source={require('../../assets/main.png')}
         style={styles.background}
         resizeMode="cover"
       >
@@ -603,7 +603,7 @@ const styles = StyleSheet.create({
   saveButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#5e4390ff',
+    backgroundColor: '#c27006ff',
     borderRadius: 50,
     paddingHorizontal: 15,
     paddingVertical: 12,
@@ -627,7 +627,7 @@ const styles = StyleSheet.create({
   logoutButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#523091ff',
+    backgroundColor: '#c27006ff',
     borderRadius: 50,
     paddingHorizontal: 15,
     paddingVertical: 12,

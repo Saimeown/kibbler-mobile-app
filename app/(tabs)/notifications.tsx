@@ -228,7 +228,7 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
   return (
     <View style={styles.container}>
       <ImageBackground
-        source={require('../../assets/BG.png')}
+        source={require('../../assets/main.png')}
         style={styles.background}
         resizeMode="cover"
       >
@@ -416,7 +416,7 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(255, 255, 255, 0.1)',
   },
   activeFilterButton: {
-    backgroundColor: '#6a47c2ff',
+    backgroundColor: '#cf7908ff',
   },
   filterButtonText: {
     color: '#fff',

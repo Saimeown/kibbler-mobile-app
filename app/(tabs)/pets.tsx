@@ -673,7 +673,7 @@ const PetsScreen = () => {
   return (
     <View style={styles.container}>
       <ImageBackground
-        source={require('../../assets/BG.png')}
+        source={require('../../assets/main.png')}
         style={styles.background}
         resizeMode="cover"
       >
@@ -1004,7 +1004,7 @@ const styles = StyleSheet.create({
   },
   subtabsOuterContainer: {
     height: 50,
-    backgroundColor: 'rgba(18, 18, 18, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.52)',
   },
   subtabsScrollContainer: {
     alignItems: 'center',
@@ -1022,7 +1022,7 @@ const styles = StyleSheet.create({
   },
   activeSubtab: {
     borderBottomWidth: 2,
-    borderBottomColor: '#6a47c2ff',
+    borderBottomColor: '#ff9100',
   },
   subtabText: {
     color: '#fff',
@@ -1129,7 +1129,7 @@ const styles = StyleSheet.create({
     textAlign: 'center',
   },
   editButton: {
-    backgroundColor: 'rgba(106, 71, 194, 0.5)',
+    backgroundColor: '#c27006ff',
     borderRadius: 8,
     paddingHorizontal: 10,
     paddingVertical: 5,
@@ -1196,7 +1196,7 @@ const styles = StyleSheet.create({
     marginRight: 10,
   },
   addButton: {
-    backgroundColor: '#dd2c00',
+    backgroundColor: '#c27006ff',
     borderRadius: 8,
     paddingHorizontal: 15,
     paddingVertical: 10,
@@ -1222,7 +1222,7 @@ const styles = StyleSheet.create({
   },
   registerButton: {
     flexDirection: 'row',
-    backgroundColor: '#dd2c00',
+    backgroundColor: '#c27006ff',
     borderRadius: 8,
     padding: 12,
     justifyContent: 'center',
