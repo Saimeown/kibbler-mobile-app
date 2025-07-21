@@ -95,6 +95,7 @@ const HomeScreen = () => {
         const unsubscribe = onValue(dbRef, (snapshot) => {
             const firebaseData = snapshot.val();
             if (firebaseData) {
+                console.log('Firebase data received:', JSON.stringify(firebaseData, null, 2)); // Debug log
                 const processedData = processDeviceData(firebaseData);
                 setData(processedData);
             }
@@ -126,54 +127,42 @@ const HomeScreen = () => {
         }));
     };
 
+    const getCurrentWeekDispenses = (firebaseData: any): number => {
+        let total = 0;
+        if (!firebaseData.history?.daily) return 0;
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dayOfWeek = today.getDay();
+        const daysSinceMonday = (dayOfWeek + 6) % 7;
+        const lastMonday = new Date(today);
+        lastMonday.setDate(today.getDate() - daysSinceMonday);
+
+        Object.entries(firebaseData.history.daily).forEach(([date, dayData]: [string, any]) => {
+            const feedingDate = new Date(date);
+            if (feedingDate >= lastMonday) {
+                total += dayData.dispense_count || 0;
+            }
+        });
+
+        return total;
+    };
+
     const processDeviceData = (firebaseData: any): DashboardData => {
-        const deviceStatus = firebaseData.device_status || {
-            status: 'offline',
-            last_seen: new Date().toISOString(),
-            battery_level: 0,
-            container_level: 0,
-            tray_level: 0,
-            wifi_signal: 'Unknown',
-            uptime: 0,
-            firebase_connected: false,
-            feeding_interval_hours: 2
+        // Initialize deviceStatus, ensuring last_empty_time is included if available
+        const deviceStatus = {
+            ...firebaseData.device_status,
+            status: firebaseData.device_status?.status || 'offline',
+            last_seen: firebaseData.device_status?.last_seen || new Date().toISOString(),
+            battery_level: firebaseData.device_status?.battery_level || 0,
+            container_level: firebaseData.device_status?.container_level || 0,
+            tray_level: firebaseData.device_status?.tray_level || 0,
+            wifi_signal: firebaseData.device_status?.wifi_signal || 'Unknown',
+            uptime: firebaseData.device_status?.uptime || 0,
+            firebase_connected: firebaseData.device_status?.firebase_connected || false,
+            feeding_interval_hours: firebaseData.device_status?.feeding_interval_hours || 2,
+            last_empty_time: firebaseData.last_empty_time || undefined // Explicitly set from firebaseData
         };
-
-        let latestFeedingTime: string | null = null;
-        if (firebaseData.feeding_history) {
-            const feedingHistory = firebaseData.feeding_history;
-            let latestTimestamp = 0;
-
-            Object.entries(feedingHistory).forEach(([key, feeding]: [string, any]) => {
-                try {
-                    let currentTime = 0;
-                    let currentFormatted: string | null = null;
-
-                    if (feeding.timestamp) {
-                        const dateTime = new Date(feeding.timestamp);
-                        if (!isNaN(dateTime.getTime())) {
-                            currentTime = dateTime.getTime();
-                            currentFormatted = formatTimeForDisplay(feeding.timestamp);
-                        }
-                    }
-
-                    if (currentTime === 0) {
-                        const dateTime = new Date(key);
-                        if (!isNaN(dateTime.getTime())) {
-                            currentTime = dateTime.getTime();
-                            currentFormatted = formatTimeForDisplay(key);
-                        }
-                    }
-
-                    if (currentTime > latestTimestamp) {
-                        latestTimestamp = currentTime;
-                        latestFeedingTime = currentFormatted;
-                    }
-                } catch (e) {
-                    console.error('Error processing feeding time:', e);
-                }
-            });
-        }
 
         let lastEmptyTime = 'Never';
         let timeSinceReset = 'N/A';
@@ -214,6 +203,42 @@ const HomeScreen = () => {
                     lastEmptyTime = 'Invalid empty time';
                 }
             }
+        }
+
+        let latestFeedingTime: string | null = null;
+        if (firebaseData.feeding_history) {
+            const feedingHistory = firebaseData.feeding_history;
+            let latestTimestamp = 0;
+
+            Object.entries(feedingHistory).forEach(([key, feeding]: [string, any]) => {
+                try {
+                    let currentTime = 0;
+                    let currentFormatted: string | null = null;
+
+                    if (feeding.timestamp) {
+                        const dateTime = new Date(feeding.timestamp);
+                        if (!isNaN(dateTime.getTime())) {
+                            currentTime = dateTime.getTime();
+                            currentFormatted = formatTimeForDisplay(feeding.timestamp);
+                        }
+                    }
+
+                    if (currentTime === 0) {
+                        const dateTime = new Date(key);
+                        if (!isNaN(dateTime.getTime())) {
+                            currentTime = dateTime.getTime();
+                            currentFormatted = formatTimeForDisplay(key);
+                        }
+                    }
+
+                    if (currentTime > latestTimestamp) {
+                        latestTimestamp = currentTime;
+                        latestFeedingTime = currentFormatted;
+                    }
+                } catch (e) {
+                    console.error('Error processing feeding time:', e);
+                }
+            });
         }
 
         const stats = {
@@ -352,27 +377,6 @@ const HomeScreen = () => {
             last_empty_time: lastEmptyTime,
             time_since_reset: timeSinceReset
         };
-    };
-
-    const getCurrentWeekDispenses = (firebaseData: any): number => {
-        let total = 0;
-        if (!firebaseData.history?.daily) return 0;
-
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dayOfWeek = today.getDay();
-        const daysSinceMonday = (dayOfWeek + 6) % 7;
-        const lastMonday = new Date(today);
-        lastMonday.setDate(today.getDate() - daysSinceMonday);
-
-        Object.entries(firebaseData.history.daily).forEach(([date, dayData]: [string, any]) => {
-            const feedingDate = new Date(date);
-            if (feedingDate >= lastMonday) {
-                total += dayData.dispense_count || 0;
-            }
-        });
-
-        return total;
     };
 
     const formatTimeForDisplay = (timestamp: string | number | undefined | null): string => {
@@ -530,16 +534,29 @@ const HomeScreen = () => {
         if (!data) return null;
 
         const isStale = () => {
-            const lastEmptyTime = data.last_empty_time;
-            if (lastEmptyTime === 'Never') return false;
+            const lastEmptyTime = data.device_status.last_empty_time;
+            console.log('isStale: lastEmptyTime:', lastEmptyTime);
 
-            if (typeof data.device_status.last_empty_time === 'number') {
-                const emptySeconds = data.device_status.last_empty_time / 1000;
+            if (!lastEmptyTime || lastEmptyTime === 'Never') {
+                console.log('isStale: No valid lastEmptyTime, returning false');
+                return false;
+            }
+
+            if (typeof lastEmptyTime === 'number') {
+                const emptySeconds = lastEmptyTime / 1000;
                 const currentUptime = data.device_status.uptime || 0;
-                return (currentUptime - emptySeconds) / 3600 > 24;
+                const hoursSinceEmpty = (currentUptime - emptySeconds) / 3600;
+                console.log('isStale (number): hoursSinceEmpty:', hoursSinceEmpty);
+                return hoursSinceEmpty > 24;
             } else {
-                const emptyTime = new Date(lastEmptyTime).getTime();
-                return (Date.now() - emptyTime) / 3600000 > 24;
+                const timestamp = new Date(lastEmptyTime).getTime();
+                if (isNaN(timestamp)) {
+                    console.log('isStale: Invalid timestamp for lastEmptyTime:', lastEmptyTime);
+                    return false;
+                }
+                const hoursSinceEmpty = (Date.now() - timestamp) / 3600000;
+                console.log('isStale (string): hoursSinceEmpty:', hoursSinceEmpty);
+                return hoursSinceEmpty > 24;
             }
         };
 
@@ -586,7 +603,7 @@ const HomeScreen = () => {
                             <FontAwesome5 name="wifi" size={16} color="#fff" />
                         </View>
                         <View style={styles.metricInfo}>
-                            <Text style={styles.metricLabel}>WiFi WiFi Signal</Text>
+                            <Text style={styles.metricLabel}>WiFi Signal</Text>
                             <Text style={styles.metricValue}>
                                 {formatWifiSignal(data.device_status.wifi_signal)}
                             </Text>
@@ -732,16 +749,35 @@ const HomeScreen = () => {
         if (!data) return null;
 
         const isStale = () => {
-            const lastEmptyTime = data.last_empty_time;
-            if (lastEmptyTime === 'Never') return false;
+            const lastEmptyTime = data.device_status.last_empty_time;
+            console.log('isStale: lastEmptyTime:', lastEmptyTime);
 
-            if (typeof data.device_status.last_empty_time === 'number') {
-                const emptySeconds = data.device_status.last_empty_time / 1000;
+            if (!lastEmptyTime || lastEmptyTime === 'Never') {
+                console.log('isStale: No valid lastEmptyTime, returning false');
+                return false;
+            }
+
+            if (typeof lastEmptyTime === 'number') {
+                const emptySeconds = lastEmptyTime / 1000;
                 const currentUptime = data.device_status.uptime || 0;
-                return (currentUptime - emptySeconds) / 3600 > 24;
+                const hoursSinceEmpty = (currentUptime - emptySeconds) / 3600;
+                console.log('isStale (number): hoursSinceEmpty:', hoursSinceEmpty);
+                return hoursSinceEmpty > 24;
             } else {
-                const emptyTime = new Date(lastEmptyTime).getTime();
-                return (Date.now() - emptyTime) / 3600000 > 24;
+                const timestamp = new Date(lastEmptyTime).getTime();
+                if (isNaN(timestamp)) {
+                    console.log('isStale: Invalid timestamp for lastEmptyTime:', lastEmptyTime);
+                    const timeSinceMatch = data.time_since_reset.match(/(\d+) hours/);
+                    if (timeSinceMatch) {
+                        const hours = parseInt(timeSinceMatch[1], 10);
+                        console.log('isStale: Fallback to time_since_reset hours:', hours);
+                        return hours > 24;
+                    }
+                    return false;
+                }
+                const hoursSinceEmpty = (Date.now() - timestamp) / 3600000;
+                console.log('isStale (string): hoursSinceEmpty:', hoursSinceEmpty);
+                return hoursSinceEmpty > 24;
             }
         };
 
@@ -932,7 +968,7 @@ const HomeScreen = () => {
                         scrollEventThrottle={16}
                         bounces={false}
                         overScrollMode="never"
-                        contentContainerStyle={{ paddingBottom: 80 }} // Add padding to avoid content being hidden under tab bar
+                        contentContainerStyle={{ paddingBottom: 80 }}
                     >
                         <View onLayout={handleLayout('Stats')}>
                             {renderStatsCards()}
@@ -974,7 +1010,7 @@ const styles = StyleSheet.create({
     },
     contentContainer: {
         flex: 1,
-        backgroundColor: 'rgba(18, 18, 18, 0.7)', // Semi-transparent overlay for readability
+        backgroundColor: 'rgba(18, 18, 18, 0.7)',
     },
     loadingContainer: {
         flex: 1,
@@ -1069,7 +1105,7 @@ const styles = StyleSheet.create({
     },
     subtabsOuterContainer: {
         height: 50,
-        backgroundColor: 'rgba(0, 0, 0, 0.52)', // Match contentContainer for consistency
+        backgroundColor: 'rgba(0, 0, 0, 0.52)',
     },
     subtabsScrollContainer: {
         alignItems: 'center',
@@ -1088,7 +1124,6 @@ const styles = StyleSheet.create({
     activeSubtab: {
         borderBottomWidth: 2,
         borderBottomColor: '#ff9100',
-
     },
     subtabText: {
         color: '#fff',
@@ -1260,7 +1295,7 @@ const styles = StyleSheet.create({
         borderBottomColor: '#2d2d2d',
     },
     alertActive: {
-        backgroundColor: 'rgba(255, 71, 71, 0.1)',
+        backgroundColor: 'rgba(255, 71, 71, 0)',
     },
     controlIcon: {
         width: 32,
