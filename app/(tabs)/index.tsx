@@ -95,7 +95,7 @@ const HomeScreen = () => {
         const unsubscribe = onValue(dbRef, (snapshot) => {
             const firebaseData = snapshot.val();
             if (firebaseData) {
-                console.log('Firebase data received:', JSON.stringify(firebaseData, null, 2)); // Debug log
+                console.log('Firebase data received:', JSON.stringify(firebaseData, null, 2)); 
                 const processedData = processDeviceData(firebaseData);
                 setData(processedData);
             }
@@ -149,7 +149,6 @@ const HomeScreen = () => {
     };
 
     const processDeviceData = (firebaseData: any): DashboardData => {
-        // Initialize deviceStatus, ensuring last_empty_time is included if available
         const deviceStatus = {
             ...firebaseData.device_status,
             status: firebaseData.device_status?.status || 'offline',
@@ -161,7 +160,7 @@ const HomeScreen = () => {
             uptime: firebaseData.device_status?.uptime || 0,
             firebase_connected: firebaseData.device_status?.firebase_connected || false,
             feeding_interval_hours: firebaseData.device_status?.feeding_interval_hours || 2,
-            last_empty_time: firebaseData.last_empty_time || undefined // Explicitly set from firebaseData
+            last_empty_time: firebaseData.last_empty_time || undefined 
         };
 
         let lastEmptyTime = 'Never';
