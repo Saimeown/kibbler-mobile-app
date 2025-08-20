@@ -24,7 +24,6 @@ type RootStackParamList = {
 // Define the navigation prop type
 type NotificationsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Notifications'>;
 
-// Define props interface
 interface NotificationsScreenProps {
   navigation: NotificationsScreenNavigationProp;
 }
@@ -64,7 +63,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
 
   useEffect(() => {
-    // Initialize notifications structure if it doesn't exist
     const notificationsRef = ref(database, '/devices/kibbler_001/notifications');
     onValue(notificationsRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -88,7 +86,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
   }, []);
 
   useEffect(() => {
-    // Auto-dismiss toast after 3 seconds
     if (toast) {
       const timer = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(timer);
@@ -100,7 +97,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
     const readStatus = deviceData.notifications?.read_status || {};
     const now = new Date().toISOString();
 
-    // Process alerts
     const status = deviceData.device_status || {};
 
     // Low Battery Alert
@@ -316,9 +312,9 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
               </View>
             }
             contentContainerStyle={styles.notificationsContainer}
-            bounces={false} // Disable iOS bounce effect
-            overScrollMode="never" // Disable Android overscroll effect
-            showsVerticalScrollIndicator={false} // Hide scrollbar
+            bounces={false} 
+            overScrollMode="never" 
+            showsVerticalScrollIndicator={false} 
           />
         </View>
       </ImageBackground>

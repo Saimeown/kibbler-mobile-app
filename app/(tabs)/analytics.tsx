@@ -16,7 +16,6 @@ import { FontAwesome5 } from '@expo/vector-icons';
 import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue } from 'firebase/database';
 
-// Extend Date interface to include getWeekNumber
 declare global {
   interface Date {
     getWeekNumber(): number;
