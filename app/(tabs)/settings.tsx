@@ -18,10 +18,8 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, update } from 'firebase/database';
 import { useRouter } from 'expo-router';
 
-// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAWs_lSL0Z09pYVQ70lvxEaqQl6YSsE6tY",
-  databaseURL: "https://kibbler-24518-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kibbler-24518",
   appId: "1:1093837743559:web:3d4a3a0a1f4e3f5c1a2f1f",
 };
@@ -36,14 +34,12 @@ const SettingsScreen = () => {
     'Poppins-Bold': require('../../assets/fonts/Poppins/Poppins-Bold.ttf'),
   });
 
-  // Device Settings states
   const [portionLevel, setPortionLevel] = useState('100');
   const [feedingInterval, setFeedingInterval] = useState('2');
   const [autoWakeEnabled, setAutoWakeEnabled] = useState(true);
   const [autoWakeHours, setAutoWakeHours] = useState('4');
   const [isSavingSettings, setIsSavingSettings] = useState(false);
 
-  // Passcode states
   const [currentPasscode, setCurrentPasscode] = useState('');
   const [newPasscode, setNewPasscode] = useState('');
   const [confirmPasscode, setConfirmPasscode] = useState('');
@@ -54,14 +50,12 @@ const SettingsScreen = () => {
     confirm: false,
   });
 
-  // General states
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
 
   const router = useRouter();
 
   useEffect(() => {
-    // Initialize Firebase structure
     const deviceRef = ref(database, '/devices/kibbler_001/sleep_settings');
     onValue(deviceRef, (snapshot) => {
       if (!snapshot.exists()) {
@@ -69,12 +63,10 @@ const SettingsScreen = () => {
       }
     }, { onlyOnce: true });
 
-    // Load current settings
     loadCurrentSettings();
   }, []);
 
   useEffect(() => {
-    // Auto-dismiss toast after 3 seconds
     if (toast) {
       const timer = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(timer);
@@ -145,10 +137,8 @@ const SettingsScreen = () => {
   };
 
   const updatePasscode = () => {
-    // Reset error states
     setPasscodeError({ current: false, new: false, confirm: false });
 
-    // Validate inputs
     if (!currentPasscode || !newPasscode || !confirmPasscode) {
       setPasscodeError({
         current: !currentPasscode,
@@ -258,7 +248,6 @@ const SettingsScreen = () => {
             </View>
           </View>
 
-          {/* Device Settings Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Device Settings</Text>
             <View style={styles.formGroup}>
@@ -360,7 +349,6 @@ const SettingsScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Change Passcode Section */}
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Change Passcode</Text>
             <View style={styles.formGroup}>
@@ -424,7 +412,6 @@ const SettingsScreen = () => {
             </TouchableOpacity>
           </View>
 
-          {/* Logout Button */}
           <View style={styles.section}>
             <TouchableOpacity
               style={styles.logoutButton}

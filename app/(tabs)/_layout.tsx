@@ -130,7 +130,7 @@ const TabsLayout = () => {
 
 const styles = StyleSheet.create({
   tabBar: {
-    backgroundColor: 'rgba(13, 13, 13, 1)', // Semi-transparent white
+  backgroundColor: 'rgba(13, 13, 13, 1)',
     borderRadius: 50,
     marginHorizontal: 15,
     marginBottom: 25,
@@ -142,7 +142,7 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.25,
     shadowRadius: 3.84,
     elevation: 5,
-    position: 'absolute', // Ensure tab bar floats over content
+  position: 'absolute',
     bottom: 0,
     left: 0,
     right: 0,

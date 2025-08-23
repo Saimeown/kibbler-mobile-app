@@ -15,23 +15,19 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, onValue, set, update } from 'firebase/database';
 import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 
-// Define the navigation stack param list
 type RootStackParamList = {
   Pets: undefined;
   Notifications: undefined;
 };
 
-// Define the navigation prop type
 type NotificationsScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Notifications'>;
 
 interface NotificationsScreenProps {
   navigation: NotificationsScreenNavigationProp;
 }
 
-// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAWs_lSL0Z09pYVQ70lvxEaqQl6YSsE6tY",
-  databaseURL: "https://kibbler-24518-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kibbler-24518",
   appId: "1:1093837743559:web:3d4a3a0a1f4e3f5c1a2f1f",
 };
@@ -70,7 +66,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
       }
     }, { onlyOnce: true });
 
-    // Set up real-time listener
     const dbRef = ref(database, '/devices/kibbler_001');
     const unsubscribe = onValue(dbRef, (snapshot) => {
       const deviceData = snapshot.val();
@@ -99,7 +94,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
 
     const status = deviceData.device_status || {};
 
-    // Low Battery Alert
     if ((status.battery_level ?? 100) < 30) {
       const timestamp = deviceData.battery_last_updated || now;
       const id = `battery_${timestamp}`;
@@ -114,7 +108,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
       });
     }
 
-    // Low Container Alert
     if ((status.container_level ?? 100) < 20) {
       const timestamp = status.last_seen || now;
       const id = `container_${timestamp}`;
@@ -129,7 +122,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
       });
     }
 
-    // Stale Food Alert
     if (deviceData.stale_food_alert === 'Active') {
       const timestamp = deviceData.last_empty_time || now;
       const id = `stale_${timestamp}`;
@@ -144,7 +136,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
       });
     }
 
-    // Process activities
     const activities = deviceData.recent_activities || {};
     Object.entries(activities).forEach(([timestamp, activity]: [string, any]) => {
       const activityTimestamp = activity.timestamp || timestamp;
@@ -161,7 +152,6 @@ const NotificationsScreen = ({ navigation }: NotificationsScreenProps) => {
       });
     });
 
-    // Sort by timestamp (newest first)
     newNotifications.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
     setNotifications(newNotifications);
   };

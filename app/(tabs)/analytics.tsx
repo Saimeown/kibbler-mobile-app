@@ -22,10 +22,8 @@ declare global {
   }
 }
 
-// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAWs_lSL0Z09pYVQ70lvxEaqQl6YSsE6tY",
-  databaseURL: "https://kibbler-24518-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kibbler-24518",
   appId: "1:1093837743559:web:3d4a3a0a1f4e3f5c1a2f1f"
 };
@@ -102,7 +100,6 @@ const AnalyticsScreen = () => {
     const feedingHistory = deviceData.feeding_history || {};
     const dailyHistory = deviceData.history?.daily || {};
 
-    // Get all unique pets
     const uniquePets: { [uid: string]: string } = {};
     Object.values(feedingHistory).forEach((feeding: Feeding) => {
       if (feeding.uid) {
@@ -110,7 +107,6 @@ const AnalyticsScreen = () => {
       }
     });
 
-    // 1. Visits per Pet per Day
     const visitsPerPetPerDay: { [date: string]: { [uid: string]: { count: number; name: string } } } = {};
     const today = new Date().toISOString().split('T')[0];
     Object.values(feedingHistory).forEach((feeding: Feeding) => {
@@ -133,7 +129,6 @@ const AnalyticsScreen = () => {
       visitsPerPetPerDay[date][petId].count++;
     });
 
-    // 2. Visits per Pet per Week
     const visitsPerPetPerWeek: { [uid: string]: { count: number; name: string } } = {};
     const currentWeek = new Date().getWeekNumber();
     Object.values(feedingHistory).forEach((feeding: Feeding) => {
@@ -155,7 +150,6 @@ const AnalyticsScreen = () => {
       visitsPerPetPerWeek[petId].count++;
     });
 
-    // 3. Peak Feeding Hours
     const hourlyCounts = Array(24).fill(0);
     Object.values(feedingHistory).forEach((feeding: Feeding) => {
       if (!feeding.timestamp) return;
@@ -168,7 +162,6 @@ const AnalyticsScreen = () => {
       return acc;
     }, []);
 
-    // 4. Last Visit Time per Pet
     const lastVisitTimes: { [uid: string]: { name: string; time: string; timestamp: number } } = {};
     Object.entries(uniquePets).forEach(([uid, name]) => {
       lastVisitTimes[uid] = { name, time: 'Never', timestamp: 0 };
@@ -191,7 +184,6 @@ const AnalyticsScreen = () => {
       }
     });
 
-    // 5. New RFID Tags Detected (This Week)
     const newTagsThisWeek: { [uid: string]: { name: string; first_seen: string } } = {};
     const weekStart = new Date();
     weekStart.setDate(weekStart.getDate() - weekStart.getDay());
@@ -222,7 +214,6 @@ const AnalyticsScreen = () => {
       }
     });
 
-    // 6. Most Frequent Visitor
     const visitCounts = Object.entries(uniquePets).map(([uid, name]) => ({
       name,
       count: 0,
@@ -237,7 +228,6 @@ const AnalyticsScreen = () => {
 
     const mostFrequentVisitor = visitCounts.sort((a, b) => b.count - a.count)[0] || null;
 
-    // 7. Most Inactive Pet
     const currentTime = Date.now() / 1000;
     const inactivePets = Object.entries(lastVisitTimes).map(([uid, data]) => ({
       name: data.name,
@@ -246,7 +236,6 @@ const AnalyticsScreen = () => {
 
     const mostInactivePet = inactivePets.sort((a, b) => b.hours - a.hours)[0] || null;
 
-    // 8. Visit Rate Change
     let currentWeekCount = 0;
     let lastWeekCount = 0;
     const lastWeekStart = new Date(weekStart);
@@ -281,7 +270,6 @@ const AnalyticsScreen = () => {
     };
   };
 
-  // Define getWeekNumber method
   Date.prototype.getWeekNumber = function (): number {
     const d = new Date(Date.UTC(this.getFullYear(), this.getMonth(), this.getDate()));
     const dayNum = d.getUTCDay() || 7;
@@ -462,7 +450,6 @@ const AnalyticsScreen = () => {
             overScrollMode="never"
             contentContainerStyle={{ paddingBottom: 80 }}
           >
-            {/* Feeding Patterns Section */}
             <View onLayout={handleLayout('Feeding Patterns')}>
 
               <View style={styles.panel}>
@@ -504,15 +491,13 @@ const AnalyticsScreen = () => {
                       style={{
                         marginVertical: 8,
                         borderRadius: 16,
-                        paddingRight: 20 // Add some padding on the right
+                        paddingRight: 20
                       }}
                     />
                   </View>
                 </ScrollView>
 
-                {/* 2x2 Grid Layout */}
                 <View style={styles.timeRangesGrid}>
-                  {/* First Row */}
                   <View style={styles.timeRangeRow}>
                     <View style={styles.timeRangeItem}>
                       <Text style={styles.timeRangeLabel}>12AM - 6AM</Text>
@@ -529,7 +514,6 @@ const AnalyticsScreen = () => {
                     </View>
                   </View>
 
-                  {/* Second Row */}
                   <View style={styles.timeRangeRow}>
                     <View style={styles.timeRangeItem}>
                       <Text style={styles.timeRangeLabel}>12PM - 6PM</Text>
@@ -556,7 +540,6 @@ const AnalyticsScreen = () => {
               </View>
             </View>
 
-            {/* Historical Data Section */}
             <View onLayout={handleLayout('Historical Data')}>
               <View style={styles.panel}>
                 <View style={styles.panelHeader}>
@@ -606,7 +589,6 @@ const AnalyticsScreen = () => {
               </View>
             </View>
 
-            {/* Overview Section */}
             <View onLayout={handleLayout('Overview')}>
               <View style={styles.panel}>
                 <View style={styles.panelHeader}>
@@ -671,7 +653,6 @@ const AnalyticsScreen = () => {
               </View>
             </View>
 
-            {/* Pet Insights Section */}
             <View onLayout={handleLayout('Pet Insights')}>
               <View style={styles.panel}>
                 <View style={styles.panelHeader}>

@@ -16,10 +16,8 @@ import { initializeApp } from 'firebase/app';
 import { getDatabase, ref, get, set } from 'firebase/database';
 import { useRouter } from 'expo-router';
 
-// Firebase configuration
 const firebaseConfig = {
   apiKey: "AIzaSyAWs_lSL0Z09pYVQ70lvxEaqQl6YSsE6tY",
-  databaseURL: "https://kibbler-24518-default-rtdb.asia-southeast1.firebasedatabase.app",
   projectId: "kibbler-24518",
   appId: "1:1093837743559:web:3d4a3a0a1f4e3f5c1a2f1f",
 };
@@ -44,7 +42,6 @@ const LoginScreen = () => {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if already logged in
     const userRef = ref(database, 'users/current_user');
     get(userRef)
       .then((snapshot) => {
@@ -64,7 +61,6 @@ const LoginScreen = () => {
   }, [router]);
 
   useEffect(() => {
-    // Auto-dismiss toast after 3 seconds
     if (toast) {
       const timer = setTimeout(() => setToast(null), 3000);
       return () => clearTimeout(timer);
@@ -72,10 +68,8 @@ const LoginScreen = () => {
   }, [toast]);
 
   const handleLogin = () => {
-    // Reset errors
     setInputErrors({ deviceId: false, passcode: false });
 
-    // Validate inputs (only check for non-empty)
     if (!deviceId || !passcode) {
       setInputErrors({ deviceId: !deviceId, passcode: !passcode });
       setToast({ message: 'Please fill in all fields', type: 'error' });
@@ -91,7 +85,6 @@ const LoginScreen = () => {
         console.log('Entered deviceId:', deviceId, 'Entered passcode:', passcode);
         if (userData && userData.device_id == deviceId && userData.passcode === passcode) {
           console.log('Credentials match, updating isLoggedIn');
-          // Update login state
           set(ref(database, 'users/current_user/isLoggedIn'), true)
             .then(() => {
               console.log('isLoggedIn set to true, redirecting to /(tabs)');
